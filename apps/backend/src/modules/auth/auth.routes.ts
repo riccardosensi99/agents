@@ -88,8 +88,12 @@ authRoutes.get(
   "/me",
   authenticate,
   asyncHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError(401, "Invalid user");
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: req.user?.id }
+      where: { id: req.user.id }
     });
 
     if (!user) {

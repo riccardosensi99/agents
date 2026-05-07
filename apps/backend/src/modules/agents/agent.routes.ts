@@ -13,6 +13,14 @@ import { serializeAgent } from "./agent.serializer";
 
 export const agentRoutes = Router();
 
+const paramId = (id: string | undefined) => {
+  if (!id) {
+    throw new AppError(400, "Missing route id");
+  }
+
+  return id;
+};
+
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -53,8 +61,9 @@ agentRoutes.get(
   "/:id",
   validateParams(agentParamsSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const agent = await prisma.agent.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         tasks: { orderBy: { createdAt: "desc" }, take: 50 },
         drafts: { orderBy: { createdAt: "desc" }, take: 50 },
@@ -105,8 +114,9 @@ agentRoutes.patch(
   validateParams(agentParamsSchema),
   validateBody(updateAgentSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const existing = await prisma.agent.findUnique({
-      where: { id: req.params.id }
+      where: { id }
     });
 
     if (!existing) {
@@ -121,7 +131,7 @@ agentRoutes.patch(
     }
 
     const agent = await prisma.agent.update({
-      where: { id: req.params.id },
+      where: { id },
       data: req.body
     });
 
@@ -142,8 +152,9 @@ agentRoutes.post(
   validateParams(agentParamsSchema),
   validateBody(createAgentTaskSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const agent = await prisma.agent.findUnique({
-      where: { id: req.params.id }
+      where: { id }
     });
 
     if (!agent) {

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import { env } from "../config/env";
 import { AppError } from "../lib/errors";
 
@@ -10,9 +10,11 @@ type TokenPayload = {
 };
 
 export function signToken(payload: TokenPayload) {
-  return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN
-  });
+  const options: SignOptions = {
+    expiresIn: env.JWT_EXPIRES_IN as Exclude<SignOptions["expiresIn"], undefined>
+  };
+
+  return jwt.sign(payload, env.JWT_SECRET, options);
 }
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {

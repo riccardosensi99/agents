@@ -70,10 +70,10 @@ export async function runTask(taskId: string) {
         content: generated.content,
         platform: generated.platform,
         status: generated.platform === "internal" ? "draft" : "waiting_approval",
-        supervisorScore: supervisorReview?.qualityScore,
-        riskLevel: supervisorReview?.riskLevel,
-        supervisorFeedback: supervisorReview?.feedback,
-        recommendedAction: supervisorReview?.recommendedAction
+        supervisorScore: supervisorReview?.qualityScore ?? null,
+        riskLevel: supervisorReview?.riskLevel ?? null,
+        supervisorFeedback: supervisorReview?.feedback ?? null,
+        recommendedAction: supervisorReview?.recommendedAction ?? null
       }
     });
 

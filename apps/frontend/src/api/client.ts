@@ -35,11 +35,16 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const init: RequestInit = {
     method: options.method ?? "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+    headers
+  };
+
+  if (options.body !== undefined) {
+    init.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(`${API_URL}${path}`, init);
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;

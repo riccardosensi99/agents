@@ -2,7 +2,7 @@ import type { DraftStatus } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../lib/asyncHandler";
-import { notFound } from "../../lib/errors";
+import { AppError, notFound } from "../../lib/errors";
 import { validateBody, validateParams } from "../../middleware/validate";
 import {
   draftParamsSchema,
@@ -12,6 +12,14 @@ import {
 } from "./draft.schemas";
 
 export const draftRoutes = Router();
+
+const paramId = (id: string | undefined) => {
+  if (!id) {
+    throw new AppError(400, "Missing route id");
+  }
+
+  return id;
+};
 
 draftRoutes.get(
   "/",
@@ -37,8 +45,9 @@ draftRoutes.patch(
   validateParams(draftParamsSchema),
   validateBody(patchDraftSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const draft = await prisma.draft.findUnique({
-      where: { id: req.params.id }
+      where: { id }
     });
 
     if (!draft) {
@@ -54,7 +63,7 @@ draftRoutes.patch(
       await prisma.approval.create({
         data: {
           draftId: draft.id,
-          userId: req.user?.id,
+          userId: req.user?.id ?? null,
           action: "edit",
           previousStatus: draft.status,
           newStatus: updated.status,
@@ -69,7 +78,7 @@ draftRoutes.patch(
 
 async function transitionDraft(
   draftId: string,
-  userId: string | undefined,
+  userId: string | null,
   status: DraftStatus,
   action: "approve" | "reject" | "request_revision",
   comment?: string
@@ -99,7 +108,7 @@ async function transitionDraft(
         action,
         previousStatus: draft.status,
         newStatus: status,
-        comment
+        comment: comment ?? null
       }
     });
 
@@ -133,7 +142,8 @@ draftRoutes.post(
   "/:id/approve",
   validateParams(draftParamsSchema),
   asyncHandler(async (req, res) => {
-    const draft = await transitionDraft(req.params.id, req.user?.id, "approved", "approve");
+    const id = paramId(req.params.id);
+    const draft = await transitionDraft(id, req.user?.id ?? null, "approved", "approve");
     res.json({ data: draft });
   })
 );
@@ -143,9 +153,10 @@ draftRoutes.post(
   validateParams(draftParamsSchema),
   validateBody(rejectDraftSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const draft = await transitionDraft(
-      req.params.id,
-      req.user?.id,
+      id,
+      req.user?.id ?? null,
       "rejected",
       "reject",
       req.body.comment
@@ -159,9 +170,10 @@ draftRoutes.post(
   validateParams(draftParamsSchema),
   validateBody(revisionRequestSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const draft = await transitionDraft(
-      req.params.id,
-      req.user?.id,
+      id,
+      req.user?.id ?? null,
       "revision_requested",
       "request_revision",
       req.body.comment

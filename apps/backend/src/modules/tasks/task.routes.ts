@@ -1,12 +1,20 @@
 import { Router } from "express";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../lib/asyncHandler";
-import { notFound } from "../../lib/errors";
+import { AppError, notFound } from "../../lib/errors";
 import { validateParams } from "../../middleware/validate";
 import { runTask } from "../../services/tasks/taskRunner";
 import { taskParamsSchema } from "./task.schemas";
 
 export const taskRoutes = Router();
+
+const paramId = (id: string | undefined) => {
+  if (!id) {
+    throw new AppError(400, "Missing route id");
+  }
+
+  return id;
+};
 
 taskRoutes.get(
   "/",
@@ -27,8 +35,9 @@ taskRoutes.get(
   "/:id",
   validateParams(taskParamsSchema),
   asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
     const task = await prisma.task.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         agent: true,
         drafts: true
@@ -47,7 +56,8 @@ taskRoutes.post(
   "/:id/run",
   validateParams(taskParamsSchema),
   asyncHandler(async (req, res) => {
-    const result = await runTask(req.params.id);
+    const id = paramId(req.params.id);
+    const result = await runTask(id);
     res.json({ data: result });
   })
 );

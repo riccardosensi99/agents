@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, type TargetAndTransition } from "framer-motion";
 import clsx from "clsx";
 import type { AgentStatus } from "../types/domain";
 
@@ -8,7 +8,7 @@ type Props = {
   compact?: boolean;
 };
 
-const motionByStatus: Record<AgentStatus, object> = {
+const motionByStatus: Record<AgentStatus, TargetAndTransition> = {
   idle: { y: [0, -4, 0], rotate: [0, 1, 0] },
   working: { y: [0, -9, 0], rotate: [-1, 2, -1], scale: [1, 1.03, 1] },
   waiting_approval: { y: [0, -3, 0], rotate: [0, 0, 0], scale: [1, 0.98, 1] },
