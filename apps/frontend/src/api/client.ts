@@ -1,0 +1,149 @@
+import type { Agent, Draft, SystemStatus, Task, User } from "../types/domain";
+
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+
+type ApiEnvelope<T> = {
+  data: T;
+};
+
+type AuthEnvelope = {
+  token: string;
+  user: User;
+};
+
+type RequestOptions = {
+  token?: string;
+  method?: "GET" | "POST" | "PATCH";
+  body?: unknown;
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, options: RequestOptions = {}) {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json"
+  };
+
+  if (options.token) {
+    headers.Authorization = `Bearer ${options.token}`;
+  }
+
+  const response = await fetch(`${API_URL}${path}`, {
+    method: options.method ?? "GET",
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new ApiError(payload?.error ?? "API request failed", response.status);
+  }
+
+  return (await response.json()) as T;
+}
+
+export const api = {
+  async login(email: string, password: string) {
+    return request<AuthEnvelope>("/auth/login", {
+      method: "POST",
+      body: { email, password }
+    });
+  },
+
+  async me(token: string) {
+    return request<{ user: User }>("/auth/me", { token });
+  },
+
+  async getSystemStatus(token: string) {
+    const response = await request<ApiEnvelope<SystemStatus>>("/system/status", { token });
+    return response.data;
+  },
+
+  async getAgents(token: string) {
+    const response = await request<ApiEnvelope<Agent[]>>("/agents", { token });
+    return response.data;
+  },
+
+  async getAgent(token: string, id: string) {
+    const response = await request<ApiEnvelope<Agent>>(`/agents/${id}`, { token });
+    return response.data;
+  },
+
+  async updateAgent(token: string, id: string, body: Partial<Agent>) {
+    const response = await request<ApiEnvelope<Agent>>(`/agents/${id}`, {
+      token,
+      method: "PATCH",
+      body
+    });
+    return response.data;
+  },
+
+  async createTask(token: string, agentId: string, body: { title: string; prompt: string }) {
+    const response = await request<ApiEnvelope<Task>>(`/agents/${agentId}/tasks`, {
+      token,
+      method: "POST",
+      body
+    });
+    return response.data;
+  },
+
+  async getTasks(token: string) {
+    const response = await request<ApiEnvelope<Task[]>>("/tasks", { token });
+    return response.data;
+  },
+
+  async runTask(token: string, taskId: string) {
+    const response = await request<ApiEnvelope<{ task: Task; draft: Draft }>>(`/tasks/${taskId}/run`, {
+      token,
+      method: "POST"
+    });
+    return response.data;
+  },
+
+  async getDrafts(token: string) {
+    const response = await request<ApiEnvelope<Draft[]>>("/drafts", { token });
+    return response.data;
+  },
+
+  async patchDraft(token: string, draftId: string, body: Partial<Draft>) {
+    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}`, {
+      token,
+      method: "PATCH",
+      body
+    });
+    return response.data;
+  },
+
+  async approveDraft(token: string, draftId: string) {
+    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}/approve`, {
+      token,
+      method: "POST"
+    });
+    return response.data;
+  },
+
+  async rejectDraft(token: string, draftId: string, comment?: string) {
+    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}/reject`, {
+      token,
+      method: "POST",
+      body: { comment }
+    });
+    return response.data;
+  },
+
+  async requestRevision(token: string, draftId: string, comment?: string) {
+    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}/request-revision`, {
+      token,
+      method: "POST",
+      body: { comment }
+    });
+    return response.data;
+  }
+};
