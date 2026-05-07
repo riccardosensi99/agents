@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react
 import { Menu } from "lucide-react";
 import { api } from "./api/client";
 import { Sidebar, type ViewKey } from "./components/Sidebar";
+import { RouteLoadBoundary } from "./components/RouteLoadBoundary";
 import { Topbar } from "./components/Topbar";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -267,24 +268,33 @@ export default function App() {
 
     if (activeView === "agent-room") {
       return (
-        <Suspense
+        <RouteLoadBoundary
+          reloadKey="agent-room-chunk-reloaded"
           fallback={
             <div className="grid min-h-[calc(100vh-82px)] place-items-center text-sm text-slate-400">
-              Caricamento Agent Room...
+              Agent Room non caricata. Aggiorna la pagina per scaricare gli asset piu recenti.
             </div>
           }
         >
-          <AgentRoomPage
-            agents={agents}
-            tasks={tasks}
-            drafts={drafts}
-            status={systemStatus}
-            onRefresh={loadAll}
-            onOpenAgent={openAgent}
-            onPauseAgent={handlers.pauseAgent}
-            onCreateTask={handlers.createTask}
-          />
-        </Suspense>
+          <Suspense
+            fallback={
+              <div className="grid min-h-[calc(100vh-82px)] place-items-center text-sm text-slate-400">
+                Caricamento Agent Room...
+              </div>
+            }
+          >
+            <AgentRoomPage
+              agents={agents}
+              tasks={tasks}
+              drafts={drafts}
+              status={systemStatus}
+              onRefresh={loadAll}
+              onOpenAgent={openAgent}
+              onPauseAgent={handlers.pauseAgent}
+              onCreateTask={handlers.createTask}
+            />
+          </Suspense>
+        </RouteLoadBoundary>
       );
     }
 

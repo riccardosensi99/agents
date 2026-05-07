@@ -17,6 +17,7 @@ export class AgentRoomScene extends Phaser.Scene {
   private taskStatus = new Map<string, string>();
   private draftStatus = new Map<string, string>();
   private nextDecisionAt = new Map<string, number>();
+  private ready = false;
 
   constructor(callbacks: AgentRoomSceneCallbacks) {
     super("AgentRoomScene");
@@ -31,13 +32,14 @@ export class AgentRoomScene extends Phaser.Scene {
     this.zones = getRoomZones(this.scale.width, this.scale.height);
     this.drawRoom();
     this.scale.on("resize", this.handleResize, this);
+    this.ready = true;
     this.setRoomState(this.snapshot);
   }
 
   setRoomState(snapshot: AgentRoomSnapshot) {
     this.snapshot = snapshot;
 
-    if (!this.scene.isActive()) {
+    if (!this.ready) {
       return;
     }
 
@@ -67,6 +69,7 @@ export class AgentRoomScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this.ready = false;
     this.scale.off("resize", this.handleResize, this);
     for (const sprite of this.sprites.values()) {
       sprite.destroy();
