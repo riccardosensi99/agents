@@ -65,8 +65,8 @@ URL Docker:
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:4000`
-- Postgres: `localhost:5432`
-- Redis: `localhost:6379`
+- Postgres: `localhost:5433`
+- Redis: `localhost:6380`
 
 Il container backend esegue `prisma migrate deploy` all'avvio. Dopo il primo avvio, esegui il seed:
 
