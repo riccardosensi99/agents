@@ -1,0 +1,21 @@
+{
+  "name": "ai-agent-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c cyan,magenta \"npm run dev --workspace @agents/backend\" \"npm run dev --workspace @agents/frontend\"",
+    "build": "npm run build --workspace @agents/backend && npm run build --workspace @agents/frontend",
+    "typecheck": "npm run typecheck --workspace @agents/backend && npm run typecheck --workspace @agents/frontend",
+    "db:generate": "npm run db:generate --workspace @agents/backend",
+    "db:migrate": "npm run db:migrate --workspace @agents/backend",
+    "db:deploy": "npm run db:deploy --workspace @agents/backend",
+    "db:seed": "npm run db:seed --workspace @agents/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

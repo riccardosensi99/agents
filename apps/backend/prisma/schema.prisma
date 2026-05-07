@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AgentStatus {
+  idle
+  working
+  waiting_approval
+  error
+}
+
+enum TaskStatus {
+  pending
+  running
+  completed
+  waiting_approval
+  rejected
+  failed
+}
+
+enum DraftStatus {
+  draft
+  waiting_approval
+  approved
+  rejected
+  revision_requested
+}
+
+enum Platform {
+  instagram
+  linkedin
+  internal
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+}
+
+enum RecommendedAction {
+  approve
+  revise
+  reject
+}
+
+enum ApprovalAction {
+  approve
+  reject
+  request_revision
+  edit
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         String     @default("owner")
+  approvals    Approval[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Agent {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique
+  role        String
+  description String
+  status      AgentStatus  @default(idle)
+  avatarType  String
+  config      Json         @default("{}")
+  tasks       Task[]
+  drafts      Draft[]
+  logs        AgentLog[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Task {
+  id        String     @id @default(uuid())
+  agentId   String
+  title     String
+  prompt    String
+  status    TaskStatus @default(pending)
+  result    String?
+  error     String?
+  agent     Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  drafts    Draft[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+}
+
+model Draft {
+  id                 String             @id @default(uuid())
+  agentId            String
+  taskId             String?
+  title              String
+  content            String
+  platform           Platform
+  status             DraftStatus        @default(waiting_approval)
+  supervisorScore    Int?
+  riskLevel          RiskLevel?
+  supervisorFeedback String?
+  recommendedAction  RecommendedAction?
+  agent              Agent              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  task               Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  approvals          Approval[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([agentId])
+  @@index([taskId])
+  @@index([status])
+}
+
+model AgentLog {
+  id        String   @id @default(uuid())
+  agentId   String
+  level     String   @default("info")
+  message   String
+  meta      Json?
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+}
+
+model Approval {
+  id             String         @id @default(uuid())
+  draftId        String
+  userId         String?
+  action         ApprovalAction
+  comment        String?
+  previousStatus DraftStatus?
+  newStatus      DraftStatus?
+  draft          Draft          @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+
+  @@index([draftId])
+  @@index([userId])
+}
+
+model SystemEvent {
+  id        String   @id @default(uuid())
+  level     String   @default("info")
+  type      String
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+}
