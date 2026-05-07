@@ -1,4 +1,4 @@
-# AI Agent Platform
+# AI Agent Platform By King
 
 Dashboard full-stack per gestire agenti AI personali: creazione agenti, task manuali, bozze, approvazioni e controllo Supervisor. Il MVP non pubblica su Instagram o LinkedIn e non usa asset esterni o personaggi protetti da copyright.
 
