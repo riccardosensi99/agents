@@ -7,7 +7,10 @@ export const generatedDraftSchema = z.object({
 });
 
 export const supervisorReviewSchema = z.object({
-  qualityScore: z.number().int().min(1).max(10),
+  qualityScore: z.coerce
+    .number()
+    .transform((value) => Math.max(1, Math.min(10, Math.round(value))))
+    .pipe(z.number().int().min(1).max(10)),
   riskLevel: z.enum(["low", "medium", "high"]),
   feedback: z.string().min(1).max(4000),
   recommendedAction: z.enum(["approve", "revise", "reject"])

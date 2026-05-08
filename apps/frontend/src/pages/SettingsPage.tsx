@@ -146,9 +146,9 @@ export function SettingsPage({
       <div className="grid gap-4 md:grid-cols-5">
         <SettingCard label="AI provider" value={status?.aiProvider ?? "mock"} />
         <SettingCard label="Scheduler" value={status?.schedulerEnabled ? "enabled" : "disabled"} />
-        <SettingCard label="Social publishing" value={status?.socialPublishing ?? "disabled"} />
+        <SettingCard label="Telegram" value={status?.telegram?.enabled ? "enabled" : "disabled"} />
+        <SettingCard label="LinkedIn" value={status?.linkedin?.enabled ? "prepared" : "disabled"} />
         <SettingCard label="Approvals" value={`${status?.counts.approvalDrafts ?? 0}`} />
-        <SettingCard label="Unread" value={`${status?.unreadNotifications ?? 0}`} />
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-xl">

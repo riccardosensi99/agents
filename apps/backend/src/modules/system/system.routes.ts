@@ -38,6 +38,14 @@ systemRoutes.get(
           approvalDrafts
         },
         unreadNotifications,
+        telegram: {
+          enabled: env.TELEGRAM_ENABLED,
+          configured: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID && env.TELEGRAM_WEBHOOK_SECRET)
+        },
+        linkedin: {
+          enabled: env.LINKEDIN_ENABLED,
+          configured: Boolean(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET && env.LINKEDIN_REDIRECT_URI)
+        },
         recentEvents: events
       }
     });

@@ -9,8 +9,10 @@ import { agentRoutes } from "./modules/agents/agent.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { draftRoutes } from "./modules/drafts/draft.routes";
 import { settingsRoutes } from "./modules/settings/settings.routes";
+import { socialRoutes } from "./modules/social/social.routes";
 import { systemRoutes } from "./modules/system/system.routes";
 import { taskRoutes } from "./modules/tasks/task.routes";
+import { telegramRoutes } from "./modules/telegram/telegram.routes";
 
 export function createApp() {
   const app = express();
@@ -30,10 +32,12 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRateLimit, authRoutes);
+  app.use("/api/telegram", telegramRoutes);
   app.use("/api/agents", authenticate, agentRoutes);
   app.use("/api/tasks", authenticate, taskRoutes);
   app.use("/api/drafts", authenticate, draftRoutes);
   app.use("/api/settings", authenticate, settingsRoutes);
+  app.use("/api/social", authenticate, socialRoutes);
   app.use("/api/system", authenticate, systemRoutes);
 
   app.use(errorHandler);

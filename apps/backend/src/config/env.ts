@@ -49,6 +49,15 @@ const envSchema = z.object({
   SCHEDULER_ENABLED: booleanFromEnv.default(false),
   INSTAGRAM_CRON: z.string().default("0 9 * * 1,3,5"),
   LINKEDIN_CRON: z.string().default("0 9 * * 2,4"),
+  TELEGRAM_ENABLED: booleanFromEnv.default(false),
+  TELEGRAM_BOT_TOKEN: optionalNonEmptyString,
+  TELEGRAM_CHAT_ID: optionalNonEmptyString,
+  TELEGRAM_WEBHOOK_SECRET: optionalNonEmptyString,
+  TELEGRAM_WEBHOOK_URL: optionalNonEmptyString,
+  LINKEDIN_ENABLED: booleanFromEnv.default(false),
+  LINKEDIN_CLIENT_ID: optionalNonEmptyString,
+  LINKEDIN_CLIENT_SECRET: optionalNonEmptyString,
+  LINKEDIN_REDIRECT_URI: optionalNonEmptyString,
   REDIS_URL: z.string().default("redis://localhost:6379")
 });
 
@@ -96,6 +105,30 @@ if (production && databaseUrl === DEFAULT_DATABASE_URL) {
   validationMessages.push("DATABASE_URL must be explicitly configured in production.");
 }
 
+if (parsedEnv.TELEGRAM_ENABLED) {
+  if (!parsedEnv.TELEGRAM_BOT_TOKEN) {
+    validationMessages.push("TELEGRAM_BOT_TOKEN is required when TELEGRAM_ENABLED=true.");
+  }
+  if (!parsedEnv.TELEGRAM_CHAT_ID) {
+    validationMessages.push("TELEGRAM_CHAT_ID is required when TELEGRAM_ENABLED=true.");
+  }
+  if (!parsedEnv.TELEGRAM_WEBHOOK_SECRET) {
+    validationMessages.push("TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_ENABLED=true.");
+  }
+}
+
+if (parsedEnv.LINKEDIN_ENABLED) {
+  if (!parsedEnv.LINKEDIN_CLIENT_ID) {
+    validationMessages.push("LINKEDIN_CLIENT_ID is required when LINKEDIN_ENABLED=true.");
+  }
+  if (!parsedEnv.LINKEDIN_CLIENT_SECRET) {
+    validationMessages.push("LINKEDIN_CLIENT_SECRET is required when LINKEDIN_ENABLED=true.");
+  }
+  if (!parsedEnv.LINKEDIN_REDIRECT_URI) {
+    validationMessages.push("LINKEDIN_REDIRECT_URI is required when LINKEDIN_ENABLED=true.");
+  }
+}
+
 if (validationMessages.length > 0) {
   failEnvValidation(validationMessages);
 }
@@ -136,6 +169,17 @@ export function getSafeStartupConfig() {
       instagramCron: env.INSTAGRAM_CRON,
       linkedinCron: env.LINKEDIN_CRON
     },
-    socialPublishing: "disabled"
+    telegram: {
+      enabled: env.TELEGRAM_ENABLED,
+      botToken: env.TELEGRAM_BOT_TOKEN ? "configured" : "not_configured",
+      chatId: env.TELEGRAM_CHAT_ID ? "configured" : "not_configured",
+      webhookUrl: env.TELEGRAM_WEBHOOK_URL ? "configured" : "not_configured"
+    },
+    linkedin: {
+      enabled: env.LINKEDIN_ENABLED,
+      clientId: env.LINKEDIN_CLIENT_ID ? "configured" : "not_configured",
+      redirectUri: env.LINKEDIN_REDIRECT_URI ? "configured" : "not_configured"
+    },
+    socialPublishing: "manual_guarded"
   };
 }

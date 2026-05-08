@@ -65,6 +65,17 @@ enum ApprovalAction {
   edit
 }
 
+enum SocialProvider {
+  linkedin
+}
+
+enum PublishingStatus {
+  pending_manual
+  blocked
+  published
+  failed
+}
+
 model User {
   id           String     @id @default(uuid())
   email        String     @unique
@@ -139,6 +150,8 @@ model Draft {
   task               Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
   approvals          Approval[]
   versions           DraftVersion[]
+  telegramActions    TelegramApprovalAction[]
+  publishingAttempts PublishingAttempt[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -249,4 +262,50 @@ model Notification {
 
   @@index([status])
   @@index([type])
+}
+
+model TelegramApprovalAction {
+  id         String         @id @default(uuid())
+  draftId    String
+  callbackId String         @unique
+  action     ApprovalAction
+  status     String         @default("received")
+  message    String?
+  payload    Json?
+  draft      Draft          @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@index([draftId])
+  @@index([status])
+}
+
+model SocialAccount {
+  id                String         @id @default(uuid())
+  provider          SocialProvider
+  accountName       String
+  accountExternalId String?
+  status            String         @default("disabled")
+  tokenMeta         Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([provider])
+  @@index([status])
+}
+
+model PublishingAttempt {
+  id          String           @id @default(uuid())
+  draftId     String
+  provider    SocialProvider
+  status      PublishingStatus @default(pending_manual)
+  payload     Json?
+  error       String?
+  requestedBy String?
+  draft       Draft            @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([draftId])
+  @@index([provider])
+  @@index([status])
 }
