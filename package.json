@@ -13,7 +13,8 @@
     "db:generate": "npm run db:generate --workspace @agents/backend",
     "db:migrate": "npm run db:migrate --workspace @agents/backend",
     "db:deploy": "npm run db:deploy --workspace @agents/backend",
-    "db:seed": "npm run db:seed --workspace @agents/backend"
+    "db:seed": "npm run db:seed --workspace @agents/backend",
+    "smoke": "node apps/backend/scripts/smoke.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
