@@ -1,7 +1,14 @@
 import type { Agent, BrandProfile, Draft, Notification, Platform, SystemStatus, Task, TaskPriority, User } from "../types/domain";
-import { errorFromResponse } from "./error";
+import {
+  debugApi,
+  errorFromResponse,
+  networkErrorFromFetch,
+  responseParseError,
+  responseShapeError
+} from "./error";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+const REQUEST_TIMEOUT_MS = 30_000;
 
 type ApiEnvelope<T> = {
   data: T;
@@ -18,6 +25,29 @@ type RequestOptions = {
   body?: unknown;
 };
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function parseJson(response: Response, path: string) {
+  const text = await response.text();
+
+  if (!text) {
+    throw responseParseError(response.status, path);
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    debugApi("parse_error", {
+      path,
+      status: response.status,
+      message: error instanceof Error ? error.message : "Invalid JSON"
+    });
+    throw responseParseError(response.status, path);
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}) {
   const headers: HeadersInit = {
     "Content-Type": "application/json"
@@ -29,27 +59,86 @@ async function request<T>(path: string, options: RequestOptions = {}) {
 
   const init: RequestInit = {
     method: options.method ?? "GET",
-    headers
+    headers,
+    cache: "no-store"
   };
 
   if (options.body !== undefined) {
     init.body = JSON.stringify(options.body);
   }
 
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
 
   try {
-    response = await fetch(`${API_URL}${path}`, init);
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      signal: controller.signal
+    });
   } catch (error) {
-    throw error;
+    throw networkErrorFromFetch(error, path);
+  } finally {
+    window.clearTimeout(timeoutId);
   }
+
+  debugApi("response", {
+    path,
+    status: response.status,
+    ok: response.ok
+  });
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw errorFromResponse(response.status, payload);
+    const payload = (await parseJson(response, path).catch((error) => {
+      if (import.meta.env.DEV) {
+        debugApi("error_payload_parse_failed", {
+          path,
+          status: response.status,
+          message: error instanceof Error ? error.message : "Unknown parse error"
+        });
+      }
+      return null;
+    })) as Parameters<typeof errorFromResponse>[1];
+
+    debugApi("error_payload", {
+      path,
+      status: response.status,
+      payload
+    });
+
+    throw errorFromResponse(response.status, payload, path);
   }
 
-  return (await response.json()) as T;
+  return (await parseJson(response, path)) as T;
+}
+
+async function requestData<T>(path: string, options: RequestOptions = {}) {
+  const envelope = await request<ApiEnvelope<T>>(path, options);
+
+  if (!isObject(envelope) || !("data" in envelope)) {
+    debugApi("invalid_envelope", {
+      path,
+      envelope
+    });
+    throw responseShapeError(path);
+  }
+
+  return envelope.data as T;
+}
+
+async function requestObjectField<T>(path: string, field: string, options: RequestOptions = {}) {
+  const payload = await request<Record<string, unknown>>(path, options);
+
+  if (!isObject(payload) || !(field in payload)) {
+    debugApi("invalid_shape", {
+      path,
+      expectedField: field,
+      payload
+    });
+    throw responseShapeError(path);
+  }
+
+  return payload[field] as T;
 }
 
 export const api = {
@@ -61,31 +150,28 @@ export const api = {
   },
 
   async me(token: string) {
-    return request<{ user: User }>("/auth/me", { token });
+    const user = await requestObjectField<User>("/auth/me", "user", { token });
+    return { user };
   },
 
   async getSystemStatus(token: string) {
-    const response = await request<ApiEnvelope<SystemStatus>>("/system/status", { token });
-    return response.data;
+    return requestData<SystemStatus>("/system/status", { token });
   },
 
   async getAgents(token: string) {
-    const response = await request<ApiEnvelope<Agent[]>>("/agents", { token });
-    return response.data;
+    return requestData<Agent[]>("/agents", { token });
   },
 
   async getAgent(token: string, id: string) {
-    const response = await request<ApiEnvelope<Agent>>(`/agents/${id}`, { token });
-    return response.data;
+    return requestData<Agent>(`/agents/${id}`, { token });
   },
 
   async updateAgent(token: string, id: string, body: Partial<Agent>) {
-    const response = await request<ApiEnvelope<Agent>>(`/agents/${id}`, {
+    return requestData<Agent>(`/agents/${id}`, {
       token,
       method: "PATCH",
       body
     });
-    return response.data;
   },
 
   async createTask(
@@ -93,124 +179,110 @@ export const api = {
     agentId: string,
     body: { title: string; prompt: string; platform?: Platform; priority?: TaskPriority; scheduledAt?: string | null }
   ) {
-    const response = await request<ApiEnvelope<Task>>(`/agents/${agentId}/tasks`, {
+    return requestData<Task>(`/agents/${agentId}/tasks`, {
       token,
       method: "POST",
       body
     });
-    return response.data;
   },
 
   async getTasks(token: string) {
-    const response = await request<ApiEnvelope<Task[]>>("/tasks", { token });
-    return response.data;
+    return requestData<Task[]>("/tasks", { token });
   },
 
   async runTask(token: string, taskId: string) {
-    const response = await request<ApiEnvelope<{ task: Task; draft: Draft }>>(`/tasks/${taskId}/run`, {
+    return requestData<{ task: Task; draft: Draft }>(`/tasks/${taskId}/run`, {
       token,
       method: "POST"
     });
-    return response.data;
   },
 
   async retryTask(token: string, taskId: string) {
-    const response = await request<ApiEnvelope<{ task: Task; draft: Draft }>>(`/tasks/${taskId}/retry`, {
+    return requestData<{ task: Task; draft: Draft }>(`/tasks/${taskId}/retry`, {
       token,
       method: "POST"
     });
-    return response.data;
   },
 
   async cancelTask(token: string, taskId: string) {
-    const response = await request<ApiEnvelope<Task>>(`/tasks/${taskId}/cancel`, {
+    return requestData<Task>(`/tasks/${taskId}/cancel`, {
       token,
       method: "POST"
     });
-    return response.data;
   },
 
   async getDrafts(token: string) {
-    const response = await request<ApiEnvelope<Draft[]>>("/drafts", { token });
-    return response.data;
+    return requestData<Draft[]>("/drafts", { token });
   },
 
   async patchDraft(token: string, draftId: string, body: Partial<Draft>) {
-    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}`, {
+    return requestData<Draft>(`/drafts/${draftId}`, {
       token,
       method: "PATCH",
       body
     });
-    return response.data;
   },
 
   async approveDraft(token: string, draftId: string) {
-    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}/approve`, {
+    return requestData<Draft>(`/drafts/${draftId}/approve`, {
       token,
       method: "POST"
     });
-    return response.data;
   },
 
   async rejectDraft(token: string, draftId: string, comment?: string) {
-    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}/reject`, {
+    return requestData<Draft>(`/drafts/${draftId}/reject`, {
       token,
       method: "POST",
       body: { comment }
     });
-    return response.data;
   },
 
   async requestRevision(token: string, draftId: string, comment?: string) {
-    const response = await request<ApiEnvelope<{ draft: Draft }>>(`/drafts/${draftId}/request-revision`, {
+    const response = await requestData<{ draft: Draft }>(`/drafts/${draftId}/request-revision`, {
       token,
       method: "POST",
       body: { comment }
     });
-    return response.data.draft;
+    return response.draft;
   },
 
   async regenerateDraft(token: string, draftId: string, comment?: string) {
-    const response = await request<ApiEnvelope<{ draft: Draft }>>(`/drafts/${draftId}/regenerate`, {
+    const response = await requestData<{ draft: Draft }>(`/drafts/${draftId}/regenerate`, {
       token,
       method: "POST",
       body: { comment }
     });
-    return response.data.draft;
+    return response.draft;
   },
 
   async getBrandProfile(token: string) {
-    const response = await request<ApiEnvelope<BrandProfile>>("/settings/brand-profile", { token });
-    return response.data;
+    return requestData<BrandProfile>("/settings/brand-profile", { token });
   },
 
   async updateBrandProfile(token: string, body: Partial<BrandProfile>) {
-    const response = await request<ApiEnvelope<BrandProfile>>("/settings/brand-profile", {
+    return requestData<BrandProfile>("/settings/brand-profile", {
       token,
       method: "PUT",
       body
     });
-    return response.data;
   },
 
   async getNotifications(token: string) {
-    const response = await request<ApiEnvelope<Notification[]>>("/system/notifications", { token });
-    return response.data;
+    return requestData<Notification[]>("/system/notifications", { token });
   },
 
   async markAllNotificationsRead(token: string) {
-    const response = await request<ApiEnvelope<Notification[]>>("/system/notifications/read-all", {
+    return requestData<Notification[]>("/system/notifications/read-all", {
       token,
       method: "POST"
     });
-    return response.data;
   },
 
   async markNotificationRead(token: string, notificationId: string) {
-    const response = await request<ApiEnvelope<Notification>>(`/system/notifications/${notificationId}/read`, {
+    return requestData<Notification>(`/system/notifications/${notificationId}/read`, {
       token,
       method: "POST"
     });
-    return response.data;
   }
 };
