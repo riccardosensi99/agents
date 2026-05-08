@@ -23,3 +23,30 @@ export async function createNotification(params: {
     }
   });
 }
+
+export async function markNotificationRead(notificationId: string) {
+  return (prisma as any).notification.update({
+    where: { id: notificationId },
+    data: {
+      status: "read",
+      readAt: new Date()
+    }
+  });
+}
+
+export async function markAllNotificationsRead() {
+  const now = new Date();
+
+  await (prisma as any).notification.updateMany({
+    where: { status: "unread" },
+    data: {
+      status: "read",
+      readAt: now
+    }
+  });
+
+  return (prisma as any).notification.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 50
+  });
+}

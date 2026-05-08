@@ -3,7 +3,7 @@ import type { BrandProfile } from "../../types/brand";
 import { buildSupervisorPrompt } from "../../prompts/supervisorPrompt";
 import { supervisorReviewSchema } from "../../validators/aiOutputs";
 import { aiClient } from "../ai/aiClient";
-import type { SupervisorReview } from "./types";
+import type { AgentRunContext, SupervisorReview } from "./types";
 
 export async function reviewDraftWithSupervisor(params: {
   title: string;
@@ -11,6 +11,7 @@ export async function reviewDraftWithSupervisor(params: {
   platform: Platform;
   brandProfile: BrandProfile | null;
   userFeedback?: string | undefined;
+  context?: AgentRunContext;
 }): Promise<SupervisorReview> {
   const prompt = buildSupervisorPrompt(params);
 
@@ -18,6 +19,7 @@ export async function reviewDraftWithSupervisor(params: {
     return await aiClient.generateJson(
       {
         ...prompt,
+        ...params.context,
         operation: "supervisor.review_draft",
         responseFormat: "json",
         temperature: 0.2

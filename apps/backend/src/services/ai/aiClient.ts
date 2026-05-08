@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { z } from "zod";
-import { env } from "../../config/env";
+import { aiProvider, env } from "../../config/env";
+import { safeErrorMessage } from "../../lib/redact";
 
 export type AiGenerateInput = {
   system: string;
@@ -8,6 +9,9 @@ export type AiGenerateInput = {
   temperature?: number;
   responseFormat?: "text" | "json";
   operation?: string;
+  taskId?: string;
+  agentSlug?: string;
+  draftId?: string;
 };
 
 export type AiClient = {
@@ -56,20 +60,35 @@ class MockAiClient extends BaseAiClient {
   public readonly provider = "mock" as const;
 
   async generateText(input: AiGenerateInput) {
+    const startedAt = Date.now();
     const system = input.system.toLowerCase();
+    const finish = (output: string) => {
+      console.info("ai.call.completed", {
+        provider: this.provider,
+        model: "mock-deterministic",
+        operation: input.operation ?? "generate",
+        taskId: input.taskId,
+        agentSlug: input.agentSlug,
+        draftId: input.draftId,
+        durationMs: Date.now() - startedAt,
+        promptChars: input.prompt.length,
+        outputChars: output.length
+      });
+      return output;
+    };
 
     if (system.includes("supervisor")) {
-      return JSON.stringify({
+      return finish(JSON.stringify({
         qualityScore: 8,
         riskLevel: "low",
         feedback:
           "Bozza coerente con un posizionamento da freelance tecnico. Tono chiaro, nessuna promessa rischiosa, buon margine per renderla piu personale.",
         recommendedAction: "approve"
-      });
+      }));
     }
 
     if (system.includes("linkedin")) {
-      return JSON.stringify({
+      return finish(JSON.stringify({
         title: "Docker nei progetti freelance",
         content: [
           "Docker non e solo comodita: nei progetti freelance riduce attrito tra sviluppo, staging e produzione.",
@@ -88,11 +107,11 @@ class MockAiClient extends BaseAiClient {
           cta: "Se vuoi rendere un progetto piu prevedibile, parti dall'ambiente.",
           angle: "operational reliability"
         }
-      });
+      }));
     }
 
     if (system.includes("instagram")) {
-      return JSON.stringify({
+      return finish(JSON.stringify({
         title: "3 idee Instagram per servizi full-stack",
         content: [
           "Hook: Il problema non e solo scrivere codice. E consegnare un prodotto che resta stabile quando va online.",
@@ -113,14 +132,14 @@ class MockAiClient extends BaseAiClient {
           hashtags: ["#fullstack", "#freelance", "#docker", "#webdevelopment"],
           ideas: ["carousel demo-to-product", "reel Docker signals", "stack post"]
         }
-      });
+      }));
     }
 
-    return JSON.stringify({
+    return finish(JSON.stringify({
       title: "Internal agent output",
       content: `Bozza generata per: ${input.prompt}`,
       metadata: {}
-    });
+    }));
   }
 }
 
@@ -130,17 +149,23 @@ class OpenAiClient extends BaseAiClient {
 
   constructor(apiKey: string) {
     super();
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({ apiKey, timeout: env.OPENAI_TIMEOUT_MS });
   }
 
   override async generateJson<T>(input: AiGenerateInput, schema: z.ZodSchema<T>) {
+    const startedAt = Date.now();
+
     try {
       return await super.generateJson(input, schema);
     } catch (error) {
-      console.warn("AI structured output fallback", {
+      console.warn("ai.call.fallback_to_mock", {
         provider: this.provider,
         operation: input.operation ?? "generate",
-        error: error instanceof Error ? error.message : "Unknown AI error"
+        taskId: input.taskId,
+        agentSlug: input.agentSlug,
+        draftId: input.draftId,
+        durationMs: Date.now() - startedAt,
+        error: safeErrorMessage(error, "Unknown AI error")
       });
       return new MockAiClient().generateJson(input, schema);
     }
@@ -148,10 +173,13 @@ class OpenAiClient extends BaseAiClient {
 
   async generateText(input: AiGenerateInput) {
     const startedAt = Date.now();
-    console.info("AI request", {
+    console.info("ai.call.started", {
       provider: this.provider,
       model: env.OPENAI_MODEL,
       operation: input.operation ?? "generate",
+      taskId: input.taskId,
+      agentSlug: input.agentSlug,
+      draftId: input.draftId,
       responseFormat: input.responseFormat ?? "text",
       promptChars: input.prompt.length
     });
@@ -169,23 +197,41 @@ class OpenAiClient extends BaseAiClient {
       request.response_format = { type: "json_object" };
     }
 
-    const completion = await withTimeout(
-      this.client.chat.completions.create(request),
-      env.OPENAI_TIMEOUT_MS,
-      "OpenAI request"
-    );
+    try {
+      const completion = await withTimeout(
+        this.client.chat.completions.create(request),
+        env.OPENAI_TIMEOUT_MS,
+        "OpenAI request"
+      );
 
-    console.info("AI response", {
-      provider: this.provider,
-      operation: input.operation ?? "generate",
-      elapsedMs: Date.now() - startedAt,
-      outputChars: completion.choices[0]?.message?.content?.length ?? 0
-    });
+      console.info("ai.call.completed", {
+        provider: this.provider,
+        model: env.OPENAI_MODEL,
+        operation: input.operation ?? "generate",
+        taskId: input.taskId,
+        agentSlug: input.agentSlug,
+        draftId: input.draftId,
+        durationMs: Date.now() - startedAt,
+        outputChars: completion.choices[0]?.message?.content?.length ?? 0
+      });
 
-    return completion.choices[0]?.message?.content?.trim() ?? "";
+      return completion.choices[0]?.message?.content?.trim() ?? "";
+    } catch (error) {
+      console.warn("ai.call.failed", {
+        provider: this.provider,
+        model: env.OPENAI_MODEL,
+        operation: input.operation ?? "generate",
+        taskId: input.taskId,
+        agentSlug: input.agentSlug,
+        draftId: input.draftId,
+        durationMs: Date.now() - startedAt,
+        error: safeErrorMessage(error, "OpenAI request failed")
+      });
+      throw error;
+    }
   }
 }
 
-export const aiClient: AiClient = env.OPENAI_API_KEY
+export const aiClient: AiClient = aiProvider === "openai" && env.OPENAI_API_KEY
   ? new OpenAiClient(env.OPENAI_API_KEY)
   : new MockAiClient();

@@ -8,9 +8,9 @@ type Props = {
   onlyApprovals?: boolean;
   onSaveDraft: (draftId: string, body: { title?: string; content?: string }) => Promise<void>;
   onApproveDraft: (draftId: string) => Promise<void>;
-  onRejectDraft: (draftId: string) => Promise<void>;
-  onRevisionDraft: (draftId: string) => Promise<void>;
-  onRegenerateDraft: (draftId: string) => Promise<void>;
+  onRejectDraft: (draftId: string, comment?: string) => Promise<void>;
+  onRevisionDraft: (draftId: string, comment?: string) => Promise<void>;
+  onRegenerateDraft: (draftId: string, comment?: string) => Promise<void>;
 };
 
 export function DraftsPage({

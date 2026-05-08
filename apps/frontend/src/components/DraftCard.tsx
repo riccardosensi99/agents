@@ -8,9 +8,9 @@ type Props = {
   draft: Draft;
   onSave: (draftId: string, body: { title?: string; content?: string }) => Promise<void>;
   onApprove: (draftId: string) => Promise<void>;
-  onReject: (draftId: string) => Promise<void>;
-  onRevision: (draftId: string) => Promise<void>;
-  onRegenerate: (draftId: string) => Promise<void>;
+  onReject: (draftId: string, comment?: string) => Promise<void>;
+  onRevision: (draftId: string, comment?: string) => Promise<void>;
+  onRegenerate: (draftId: string, comment?: string) => Promise<void>;
 };
 
 export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRegenerate }: Props) {
@@ -28,6 +28,8 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
       setBusy(false);
     }
   }
+
+  const askFeedback = (fallback: string) => window.prompt("Feedback per l'agente", fallback) ?? undefined;
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
@@ -123,7 +125,14 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
         <button
           type="button"
           disabled={busy}
-          onClick={() => void act(() => onRegenerate(draft.id))}
+          onClick={() =>
+            void act(() =>
+              onRegenerate(
+                draft.id,
+                askFeedback("Rigenera mantenendo il Brand Profile e rendendo il testo piu concreto")
+              )
+            )
+          }
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-45"
         >
           <RotateCcw size={16} />
@@ -132,7 +141,14 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
         <button
           type="button"
           disabled={busy}
-          onClick={() => void act(() => onRevision(draft.id))}
+          onClick={() =>
+            void act(() =>
+              onRevision(
+                draft.id,
+                askFeedback("Rivedi la bozza: piu specifica, meno generica, piu aderente al mio tono")
+              )
+            )
+          }
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-amber-300/12 px-3 text-sm font-medium text-amber-100 transition hover:bg-amber-300/18 disabled:opacity-45"
         >
           <RotateCcw size={16} />
@@ -141,7 +157,11 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
         <button
           type="button"
           disabled={busy}
-          onClick={() => void act(() => onReject(draft.id))}
+          onClick={() =>
+            void act(() =>
+              onReject(draft.id, askFeedback("Rifiutata: non abbastanza concreta o non in linea col brand"))
+            )
+          }
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-rose-300/12 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-300/18 disabled:opacity-45"
         >
           <X size={16} />

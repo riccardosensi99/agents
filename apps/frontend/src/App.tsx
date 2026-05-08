@@ -262,27 +262,31 @@ export default function App() {
         await loadAll();
         await loadSelectedAgent();
       },
-      async rejectDraft(draftId: string) {
+      async rejectDraft(draftId: string, comment?: string) {
         if (!token) {
           return;
         }
-        await api.rejectDraft(token, draftId, "Rifiutata dalla dashboard");
+        await api.rejectDraft(token, draftId, comment ?? "Rifiutata dalla dashboard");
         await loadAll();
         await loadSelectedAgent();
       },
-      async revisionDraft(draftId: string) {
+      async revisionDraft(draftId: string, comment?: string) {
         if (!token) {
           return;
         }
-        await api.requestRevision(token, draftId, "Richiesta revisione manuale");
+        await api.requestRevision(token, draftId, comment ?? "Richiesta revisione manuale");
         await loadAll();
         await loadSelectedAgent();
       },
-      async regenerateDraft(draftId: string) {
+      async regenerateDraft(draftId: string, comment?: string) {
         if (!token) {
           return;
         }
-        await api.regenerateDraft(token, draftId, "Rigenera mantenendo il brand profile e rendendo il testo piu concreto");
+        await api.regenerateDraft(
+          token,
+          draftId,
+          comment ?? "Rigenera mantenendo il brand profile e rendendo il testo piu concreto"
+        );
         await loadAll();
         await loadSelectedAgent();
       },
@@ -308,6 +312,14 @@ export default function App() {
         }
         const profile = await api.updateBrandProfile(token, body);
         setBrandProfile(profile);
+        await loadAll();
+      },
+      async markNotificationsRead() {
+        if (!token) {
+          return;
+        }
+        const nextNotifications = await api.markAllNotificationsRead(token);
+        setNotifications(nextNotifications);
         await loadAll();
       }
     }),
@@ -423,6 +435,7 @@ export default function App() {
           brandProfile={brandProfile}
           notifications={notifications}
           onSaveBrandProfile={handlers.saveBrandProfile}
+          onMarkNotificationsRead={handlers.markNotificationsRead}
         />
       );
     }

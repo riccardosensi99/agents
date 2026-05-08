@@ -4,7 +4,7 @@ import helmet from "helmet";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import { authenticate } from "./middleware/auth";
-import { rateLimit } from "./middleware/rateLimit";
+import { authRateLimit, generalRateLimit } from "./middleware/rateLimit";
 import { agentRoutes } from "./modules/agents/agent.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { draftRoutes } from "./modules/drafts/draft.routes";
@@ -23,13 +23,13 @@ export function createApp() {
     })
   );
   app.use(express.json({ limit: "1mb" }));
-  app.use(rateLimit);
+  app.use(generalRateLimit);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });
 
-  app.use("/api/auth", authRoutes);
+  app.use("/api/auth", authRateLimit, authRoutes);
   app.use("/api/agents", authenticate, agentRoutes);
   app.use("/api/tasks", authenticate, taskRoutes);
   app.use("/api/drafts", authenticate, draftRoutes);

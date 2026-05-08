@@ -44,12 +44,18 @@ async function createScheduledTask(agentSlug: string, title: string, prompt: str
 
 export function startScheduler() {
   if (!env.SCHEDULER_ENABLED) {
+    console.info("scheduler.disabled");
     return;
   }
 
   if (!cron.validate(env.INSTAGRAM_CRON) || !cron.validate(env.LINKEDIN_CRON)) {
     throw new Error("Invalid scheduler cron expression");
   }
+
+  console.info("scheduler.starting", {
+    instagramCron: env.INSTAGRAM_CRON,
+    linkedinCron: env.LINKEDIN_CRON
+  });
 
   jobs.push(
     cron.schedule(env.INSTAGRAM_CRON, () => {
@@ -75,5 +81,9 @@ export function startScheduler() {
 export function stopScheduler() {
   for (const job of jobs) {
     job.stop();
+  }
+
+  if (jobs.length > 0) {
+    console.info("scheduler.stopped", { jobs: jobs.length });
   }
 }

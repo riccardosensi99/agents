@@ -1,7 +1,9 @@
 import { Router } from "express";
-import { env } from "../../config/env";
+import { aiProvider, env } from "../../config/env";
 import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../lib/asyncHandler";
+import { AppError } from "../../lib/errors";
+import { markAllNotificationsRead, markNotificationRead } from "../../services/notifications/notificationService";
 
 export const systemRoutes = Router();
 
@@ -24,7 +26,7 @@ systemRoutes.get(
       data: {
         api: "ok",
         database: "ok",
-        aiProvider: env.OPENAI_API_KEY ? "openai" : "mock",
+        aiProvider,
         schedulerEnabled: env.SCHEDULER_ENABLED,
         socialPublishing: "disabled",
         uptimeSeconds: Math.round(process.uptime()),
@@ -51,5 +53,27 @@ systemRoutes.get(
     });
 
     res.json({ data: notifications });
+  })
+);
+
+systemRoutes.post(
+  "/notifications/read-all",
+  asyncHandler(async (_req, res) => {
+    const notifications = await markAllNotificationsRead();
+    res.json({ data: notifications });
+  })
+);
+
+systemRoutes.post(
+  "/notifications/:id/read",
+  asyncHandler(async (req, res) => {
+    const id = req.params.id;
+
+    if (!id) {
+      throw new AppError(400, "Missing notification id");
+    }
+
+    const notification = await markNotificationRead(id);
+    res.json({ data: notification });
   })
 );

@@ -1,4 +1,5 @@
 const API_URL = process.env.SMOKE_API_URL ?? "http://localhost:4000/api";
+const HEALTH_URL = process.env.SMOKE_HEALTH_URL ?? API_URL.replace(/\/api\/?$/, "/health");
 const email = process.env.SMOKE_EMAIL ?? "owner@example.com";
 const password = process.env.SMOKE_PASSWORD ?? "changeme123";
 
@@ -21,6 +22,19 @@ async function request(path, options = {}) {
 
   return payload;
 }
+
+async function healthcheck() {
+  const response = await fetch(HEALTH_URL);
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(`GET ${HEALTH_URL} failed: ${response.status} ${JSON.stringify(payload)}`);
+  }
+
+  console.log("healthcheck ok");
+}
+
+await healthcheck();
 
 const auth = await request("/auth/login", {
   method: "POST",
@@ -58,6 +72,18 @@ if (!run.data.draft?.id) {
   throw new Error("Draft was not created");
 }
 
+if (!run.data.supervisorReview?.recommendedAction) {
+  throw new Error("Supervisor evaluation was not created");
+}
+
+await request(`/drafts/${run.data.draft.id}`, {
+  method: "PATCH",
+  token,
+  body: {
+    content: `${run.data.draft.content}\n\nSmoke note: bozza verificata prima dell'approvazione.`
+  }
+});
+
 await request(`/drafts/${run.data.draft.id}/approve`, {
   method: "POST",
   token
@@ -69,7 +95,8 @@ console.log(
       ok: true,
       taskId: created.data.id,
       draftId: run.data.draft.id,
-      supervisorAction: run.data.supervisorReview?.recommendedAction ?? null
+      supervisorAction: run.data.supervisorReview.recommendedAction,
+      approvalFlow: "edited_and_approved"
     },
     null,
     2

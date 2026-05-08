@@ -33,7 +33,7 @@ docker-compose.yml
 
 ## Avvio locale
 
-Prerequisiti: Node.js 22+, npm, PostgreSQL locale.
+Prerequisiti: Node.js 22+, npm, PostgreSQL locale o Docker.
 
 ```bash
 cp .env.example .env
@@ -43,6 +43,8 @@ npm run db:migrate
 npm run db:seed
 npm run dev
 ```
+
+Per sviluppo locale il mock AI e automatico se `OPENAI_API_KEY` resta vuota. Cambia `JWT_SECRET` prima di usare l'app fuori dalla tua macchina.
 
 URL locali:
 
@@ -63,6 +65,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+`docker-compose.yml` usa `NODE_ENV=development` di default per permettere un primo avvio locale con `.env.example`. Per produzione imposta esplicitamente `NODE_ENV=production`, un `JWT_SECRET` casuale e una `DATABASE_URL` reale. Il backend rifiuta placeholder noti in produzione.
+
 URL Docker:
 
 - Frontend: `http://localhost:3000`
@@ -77,18 +81,37 @@ Il container backend esegue `prisma migrate deploy` all'avvio. Dopo il primo avv
 docker compose exec backend npx prisma db seed
 ```
 
+## Deploy VPS
+
+Checklist minima per una prima produzione interna:
+
+- Punta un reverse proxy con TLS verso il frontend nginx (`FRONTEND_PORT`, default `3000`).
+- Mantieni `/api` e `/health` proxyati dal frontend nginx verso il backend, oppure esponi il backend solo sulla rete privata.
+- Imposta `NODE_ENV=production`, `JWT_SECRET` random, `POSTGRES_PASSWORD` robusta e `CORS_ORIGIN=https://tuo-dominio`.
+- Se vuoi AI reale, imposta `OPENAI_API_KEY`, `OPENAI_MODEL` e `OPENAI_TIMEOUT_MS`.
+- Esegui `docker compose up --build -d`; il backend applica `prisma migrate deploy`.
+- Esegui il seed solo quando ti serve creare l'utente/agenti iniziali: `docker compose exec backend npx prisma db seed`.
+- Configura backup Postgres del volume `postgres_data`; non cancellare volumi per aggiornare l'app.
+- Tieni `.env` fuori da Git e gestisci secret tramite file protetti o secret manager del VPS.
+- Lascia `SCHEDULER_ENABLED=false` finche il workflow manuale non e stabile.
+- Verifica `http(s)://dominio/health`, login, smoke test, creazione task e approvazione bozza.
+
 ## Variabili env principali
 
 - `DATABASE_URL`: connessione PostgreSQL per sviluppo locale.
-- `JWT_SECRET`: segreto JWT. In produzione e obbligatorio cambiarlo.
-- `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`: rate limit API in memoria per singola istanza.
+- `JWT_SECRET`: segreto JWT. In produzione deve essere lungo almeno 32 caratteri e non puo essere un placeholder.
+- `CORS_ORIGIN`: origine frontend ammessa dal backend, ad esempio `https://agents.example.com`.
+- `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`: rate limit API in memoria per singola istanza. La struttura e pronta per sostituire lo store con Redis.
 - `OPENAI_API_KEY`: se vuoto, il backend usa risposte mock deterministiche.
 - `OPENAI_MODEL`: modello OpenAI configurabile.
 - `OPENAI_TIMEOUT_MS`: timeout massimo per richiesta OpenAI.
 - `SCHEDULER_ENABLED`: `false` di default. Se `true`, crea task e bozze schedulate per InstaSpark e LinkForge.
 - `INSTAGRAM_CRON`: cron per task Instagram, default lunedi/mercoledi/venerdi alle 09:00.
 - `LINKEDIN_CRON`: cron per task LinkedIn, default martedi/giovedi alle 09:00.
+- `REDIS_URL`: configurazione preparata per rate limit/queue futuri, non ancora usata come store runtime.
 - `VITE_API_URL`: URL API usato in build frontend. In Docker resta `/api` e nginx fa proxy al backend.
+
+La validazione env avviene all'avvio backend in `apps/backend/src/config/env.ts`. Lo startup log mostra solo stato/config safe, mai `JWT_SECRET`, `OPENAI_API_KEY` o prompt completi.
 
 ## Workflow operativo agenti
 
@@ -119,6 +142,7 @@ OPENAI_TIMEOUT_MS=45000
 Il client AI e centralizzato in `apps/backend/src/services/ai/aiClient.ts`.
 I prompt sono separati in `apps/backend/src/prompts/` per renderli versionabili e sostituibili.
 Gli agenti sono strutturati per una futura migrazione a OpenAI Agents SDK: prompt builder, output parser, service agente e task runner sono separati.
+Gli errori OpenAI vengono loggati con task, agente, modello e durata; se la risposta non arriva o non passa lo schema Zod, il sistema usa il mock deterministico come fallback operativo.
 
 ## Brand Profile
 
@@ -211,6 +235,8 @@ Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibi
 - `PUT /api/settings/brand-profile`
 - `GET /api/system/status`
 - `GET /api/system/notifications`
+- `POST /api/system/notifications/:id/read`
+- `POST /api/system/notifications/read-all`
 
 Tutte le route operative richiedono `Authorization: Bearer <token>`. Usa `POST /api/auth/login` per ottenere il token.
 
@@ -243,21 +269,45 @@ npm run smoke
 
 Lo smoke test fa:
 
+- healthcheck
 - login
 - lettura Brand Profile
 - creazione task InstaSpark
 - run task in mock/OpenAI
 - creazione bozza
 - review Supervisor
+- modifica bozza
 - approvazione bozza
 
 Variabili opzionali:
 
 ```bash
 SMOKE_API_URL=http://localhost:4000/api
+SMOKE_HEALTH_URL=http://localhost:4000/health
 SMOKE_EMAIL=owner@example.com
 SMOKE_PASSWORD=changeme123
 ```
+
+## Stato production-readiness
+
+Pronto per una prima produzione interna:
+
+- auth JWT con env validata e rate limit su auth/task run
+- task runner con lifecycle, retry falliti, cancel pending, lock anti doppio run e log eventi
+- AI OpenAI reale se `OPENAI_API_KEY` esiste, mock deterministico se manca
+- prompt separati e output validati con Zod
+- Brand Profile usato da InstaSpark, LinkForge e Overseer
+- workflow task -> bozza -> supervisor -> approvazione manuale con versioni
+- notifiche interne DB/UI per bozze, failure e raccomandazioni Supervisor
+- Docker Compose con Postgres, Redis preparato, nginx proxy `/api`, healthcheck backend
+
+Resta da fare per produzione piena:
+
+- Redis-backed rate limit e worker separato per job lunghi
+- ruoli/permessi piu granulari se entrano piu utenti
+- backup/restore automatizzati e monitoraggio esterno
+- audit trail piu dettagliato per publishing futuro
+- WebSocket/SSE al posto del polling UI
 
 ## Cosa manca per social reali
 

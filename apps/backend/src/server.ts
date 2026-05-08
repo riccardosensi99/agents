@@ -1,4 +1,4 @@
-import { env } from "./config/env";
+import { env, getSafeStartupConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { createApp } from "./app";
 import { startScheduler, stopScheduler } from "./scheduler/scheduler";
@@ -6,8 +6,9 @@ import { startScheduler, stopScheduler } from "./scheduler/scheduler";
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
+  console.info("backend.startup", getSafeStartupConfig());
   startScheduler();
-  console.log(`Backend listening on port ${env.PORT}`);
+  console.info("backend.listening", { port: env.PORT });
 });
 
 async function shutdown(signal: string) {

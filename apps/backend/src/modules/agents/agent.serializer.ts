@@ -6,7 +6,30 @@ export type AgentWithActivity = Agent & {
   logs: AgentLog[];
 };
 
-export function serializeAgent(agent: AgentWithActivity) {
+export type SerializedAgent = {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+  description: string;
+  status: Agent["status"];
+  avatarType: string;
+  config: Agent["config"];
+  createdAt: Date;
+  updatedAt: Date;
+  lastActivity: Date;
+  currentTask: Task | null;
+  metrics: {
+    completedTasks: number;
+    failedTasks: number;
+    draftsCreated: number;
+  };
+  recentLogs: AgentLog[];
+  recentTasks: Task[];
+  recentDrafts: Draft[];
+};
+
+export function serializeAgent(agent: AgentWithActivity): SerializedAgent {
   const completedTasks = agent.tasks.filter((task) => task.status === "completed").length;
   const failedTasks = agent.tasks.filter((task) => task.status === "failed").length;
   const currentTask =
