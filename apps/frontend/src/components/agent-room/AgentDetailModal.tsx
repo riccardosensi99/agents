@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { ArrowUpRight, Pause, Send, X } from "lucide-react";
+import { getGeneralErrorMessage } from "../../api/error";
 import type { Agent, Task } from "../../types/domain";
 import { formatDate } from "../../utils/format";
+import { LoadingButton } from "../forms/LoadingButton";
 import { StatusBadge } from "../StatusBadge";
 import { TaskComposer } from "../TaskComposer";
+import { useToast } from "../toast/ToastProvider";
 
 type Props = {
   agent: Agent;
@@ -15,7 +18,21 @@ type Props = {
 
 export function AgentDetailModal({ agent, onClose, onPause, onOpenDetails, onCreateTask }: Props) {
   const [assigning, setAssigning] = useState(false);
+  const [pausing, setPausing] = useState(false);
+  const toast = useToast();
   const metrics = agent.metrics ?? { completedTasks: 0, failedTasks: 0, draftsCreated: 0 };
+
+  async function pause() {
+    setPausing(true);
+    try {
+      await onPause(agent.id);
+      toast.success("Agente messo in pausa");
+    } catch (err) {
+      toast.error("Errore pausa agente", getGeneralErrorMessage(err));
+    } finally {
+      setPausing(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/72 px-4 backdrop-blur-sm">
@@ -65,14 +82,16 @@ export function AgentDetailModal({ agent, onClose, onPause, onOpenDetails, onCre
             <Send size={16} />
             Assegna task
           </button>
-          <button
+          <LoadingButton
             type="button"
-            onClick={() => void onPause(agent.id)}
+            loading={pausing}
+            loadingLabel="Pausa..."
+            onClick={() => void pause()}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10"
           >
             <Pause size={16} />
             Pausa
-          </button>
+          </LoadingButton>
           <button
             type="button"
             onClick={() => {

@@ -288,6 +288,20 @@ SMOKE_EMAIL=owner@example.com
 SMOKE_PASSWORD=changeme123
 ```
 
+## Test manuale feedback UI
+
+Per verificare errori di validazione e messaggi operativi:
+
+1. Avvia app e backend con Docker o dev server.
+2. Entra in `Settings`.
+3. Nel campo `Chi sono` del Brand Profile inserisci piu di 160 caratteri.
+4. Premi `Salva profilo`.
+5. Atteso: toast di warning/errore, errore sotto il campo, bordo campo evidenziato e contatore oltre limite.
+6. Riduci il testo sotto 160 caratteri e salva di nuovo.
+7. Atteso: toast `Profilo salvato correttamente`.
+
+Lo stesso sistema di toast/loading/errori copre creazione e run task, retry/cancel, modifica/approval/revision/regenerate bozze, update agente, pausa agente e notifiche.
+
 ## Stato production-readiness
 
 Pronto per una prima produzione interna:

@@ -1,8 +1,12 @@
 import { Ban, Play, RotateCcw, Send } from "lucide-react";
 import { useMemo, useState } from "react";
+import { getGeneralErrorMessage } from "../api/error";
+import { FormError } from "../components/forms/FormError";
+import { LoadingButton } from "../components/forms/LoadingButton";
 import type { Agent, Platform, Task, TaskPriority } from "../types/domain";
 import { formatDate } from "../utils/format";
 import { StatusBadge } from "../components/StatusBadge";
+import { useToast } from "../components/toast/ToastProvider";
 
 type Props = {
   agents: Agent[];
@@ -37,6 +41,9 @@ export function TasksPage({ agents, tasks, onCreateTask, onRunTask, onRetryTask,
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [submitting, setSubmitting] = useState(false);
+  const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const toast = useToast();
 
   const visibleTasks = tasks.filter((task) => {
     const statusMatches = statusFilter === "all" || task.status === statusFilter;
@@ -46,10 +53,25 @@ export function TasksPage({ agents, tasks, onCreateTask, onRunTask, onRetryTask,
 
   async function create(runNow: boolean) {
     if (!selectedAgent || prompt.trim().length < 5) {
+      setFormError("Il prompt deve contenere almeno 5 caratteri.");
+      toast.warning("Task non creato", "Aggiungi un prompt piu completo.");
+      return;
+    }
+
+    if (title.length > 160) {
+      setFormError("Il titolo puo contenere al massimo 160 caratteri.");
+      toast.warning("Task non creato", "Il titolo e troppo lungo.");
+      return;
+    }
+
+    if (prompt.length > 5000) {
+      setFormError("Il prompt puo contenere al massimo 5000 caratteri.");
+      toast.warning("Task non creato", "Il prompt e troppo lungo.");
       return;
     }
 
     setSubmitting(true);
+    setFormError(null);
     try {
       await onCreateTask(selectedAgent.id, {
         title: title.trim() || `Task per ${selectedAgent.name}`,
@@ -60,8 +82,25 @@ export function TasksPage({ agents, tasks, onCreateTask, onRunTask, onRetryTask,
         scheduledAt: null
       });
       setTitle("");
+      toast.success(runNow ? "Task creato e avviato" : "Task creato correttamente");
+    } catch (err) {
+      const message = getGeneralErrorMessage(err);
+      setFormError(message);
+      toast.error("Errore creazione task", message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function actOnTask(taskId: string, action: () => Promise<void>, successMessage: string, errorTitle: string) {
+    setBusyTaskId(taskId);
+    try {
+      await action();
+      toast.success(successMessage);
+    } catch (err) {
+      toast.error(errorTitle, getGeneralErrorMessage(err));
+    } finally {
+      setBusyTaskId(null);
     }
   }
 
@@ -117,25 +156,30 @@ export function TasksPage({ agents, tasks, onCreateTask, onRunTask, onRetryTask,
           rows={4}
           className="mt-3 w-full resize-none rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm leading-6 text-white outline-none focus:border-cyan-300/45"
         />
+        <FormError message={formError} />
         <div className="mt-3 flex flex-wrap justify-end gap-2">
-          <button
+          <LoadingButton
             type="button"
-            disabled={submitting || !selectedAgent || prompt.trim().length < 5}
+            loading={submitting}
+            disabled={!selectedAgent || prompt.trim().length < 5}
+            loadingLabel="Salvataggio..."
             onClick={() => void create(false)}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-45"
           >
             <Send size={16} />
             Salva
-          </button>
-          <button
+          </LoadingButton>
+          <LoadingButton
             type="button"
-            disabled={submitting || !selectedAgent || prompt.trim().length < 5}
+            loading={submitting}
+            disabled={!selectedAgent || prompt.trim().length < 5}
+            loadingLabel="Avvio..."
             onClick={() => void create(true)}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:opacity-45"
           >
             <Play size={16} />
             Salva e avvia
-          </button>
+          </LoadingButton>
         </div>
       </div>
 
@@ -178,34 +222,43 @@ export function TasksPage({ agents, tasks, onCreateTask, onRunTask, onRetryTask,
               <div className="flex flex-wrap gap-2">
                 <StatusBadge kind="task" status={task.status} />
                 {["pending", "failed", "rejected", "revision_requested"].includes(task.status) ? (
-                  <button
+                  <LoadingButton
                     type="button"
-                    onClick={() => void onRunTask(task.id)}
+                    loading={busyTaskId === task.id}
+                    onClick={() =>
+                      void actOnTask(task.id, () => onRunTask(task.id), "Task avviato", "Errore avvio task")
+                    }
                     className="inline-flex h-9 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
                   >
                     <Play size={15} />
                     Run
-                  </button>
+                  </LoadingButton>
                 ) : null}
                 {task.status === "failed" ? (
-                  <button
+                  <LoadingButton
                     type="button"
-                    onClick={() => void onRetryTask(task.id)}
+                    loading={busyTaskId === task.id}
+                    onClick={() =>
+                      void actOnTask(task.id, () => onRetryTask(task.id), "Task rilanciato", "Errore retry task")
+                    }
                     className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10"
                   >
                     <RotateCcw size={15} />
                     Retry
-                  </button>
+                  </LoadingButton>
                 ) : null}
                 {task.status !== "running" && task.status !== "completed" ? (
-                  <button
+                  <LoadingButton
                     type="button"
-                    onClick={() => void onCancelTask(task.id)}
+                    loading={busyTaskId === task.id}
+                    onClick={() =>
+                      void actOnTask(task.id, () => onCancelTask(task.id), "Task cancellato", "Errore cancellazione task")
+                    }
                     className="inline-flex h-9 items-center gap-2 rounded-xl bg-rose-300/12 px-3 text-sm text-rose-100 transition hover:bg-rose-300/18"
                   >
                     <Ban size={15} />
                     Cancel
-                  </button>
+                  </LoadingButton>
                 ) : null}
               </div>
             </div>

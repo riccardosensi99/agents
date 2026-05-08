@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { Check, Edit3, RotateCcw, Save, X } from "lucide-react";
+import { getGeneralErrorMessage } from "../api/error";
 import type { Draft } from "../types/domain";
 import { formatDate } from "../utils/format";
+import { FieldError } from "./forms/FieldError";
+import { FormError } from "./forms/FormError";
+import { LoadingButton } from "./forms/LoadingButton";
 import { StatusBadge } from "./StatusBadge";
+import { useToast } from "./toast/ToastProvider";
 
 type Props = {
   draft: Draft;
@@ -18,15 +23,51 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
   const [title, setTitle] = useState(draft.title);
   const [content, setContent] = useState(draft.content);
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string | undefined; content?: string | undefined }>({});
+  const toast = useToast();
 
-  async function act(action: () => Promise<void>) {
+  async function act(action: () => Promise<void>, successMessage: string, errorTitle: string) {
     setBusy(true);
+    setFormError(null);
     try {
       await action();
       setEditing(false);
+      toast.success(successMessage);
+    } catch (err) {
+      const message = getGeneralErrorMessage(err);
+      setFormError(message);
+      toast.error(errorTitle, message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function save() {
+    const nextErrors = {
+      title:
+        title.trim().length < 2
+          ? "Minimo 2 caratteri."
+          : title.length > 180
+            ? "Massimo 180 caratteri."
+            : undefined,
+      content:
+        content.trim().length < 1
+          ? "Il contenuto non puo essere vuoto."
+          : content.length > 12000
+            ? "Massimo 12000 caratteri."
+            : undefined
+    };
+
+    setFieldErrors(nextErrors);
+
+    if (nextErrors.title || nextErrors.content) {
+      setFormError("Controlla i campi evidenziati.");
+      toast.warning("Bozza non salvata", "Correggi titolo o contenuto.");
+      return;
+    }
+
+    await act(() => onSave(draft.id, { title, content }), "Bozza salvata", "Errore salvataggio bozza");
   }
 
   const askFeedback = (fallback: string) => window.prompt("Feedback per l'agente", fallback) ?? undefined;
@@ -36,11 +77,25 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           {editing ? (
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/45"
-            />
+            <div className="grid gap-1">
+              <input
+                value={title}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  setFieldErrors((current) => ({ ...current, title: undefined }));
+                }}
+                aria-invalid={Boolean(fieldErrors.title)}
+                className={`h-10 w-full rounded-xl border bg-slate-950/50 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/45 ${
+                  fieldErrors.title ? "border-rose-300/50" : "border-white/10"
+                }`}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <FieldError message={fieldErrors.title} />
+                <span className={title.length > 180 ? "text-xs text-rose-200" : "text-xs text-slate-600"}>
+                  {title.length}/180
+                </span>
+              </div>
+            </div>
           ) : (
             <h3 className="text-base font-semibold text-white">{draft.title}</h3>
           )}
@@ -56,17 +111,35 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
 
       <div className="mt-4">
         {editing ? (
-          <textarea
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            rows={8}
-            className="w-full resize-none rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm leading-6 text-slate-100 outline-none focus:border-cyan-300/45"
-          />
+          <div className="grid gap-1">
+            <textarea
+              value={content}
+              onChange={(event) => {
+                setContent(event.target.value);
+                setFieldErrors((current) => ({ ...current, content: undefined }));
+              }}
+              rows={8}
+              aria-invalid={Boolean(fieldErrors.content)}
+              className={`w-full resize-none rounded-xl border bg-slate-950/50 p-3 text-sm leading-6 text-slate-100 outline-none focus:border-cyan-300/45 ${
+                fieldErrors.content ? "border-rose-300/50" : "border-white/10"
+              }`}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <FieldError message={fieldErrors.content} />
+              <span className={content.length > 12000 ? "text-xs text-rose-200" : "text-xs text-slate-600"}>
+                {content.length}/12000
+              </span>
+            </div>
+          </div>
         ) : (
           <p className="whitespace-pre-line rounded-xl border border-white/10 bg-slate-950/35 p-3 text-sm leading-6 text-slate-200">
             {draft.content}
           </p>
         )}
+      </div>
+
+      <div className="mt-4">
+        <FormError message={formError} />
       </div>
 
       <div className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-slate-950/25 p-3 md:grid-cols-[120px_1fr_140px]">
@@ -112,70 +185,79 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
           Modifica
         </button>
         {editing ? (
-          <button
+          <LoadingButton
             type="button"
-            disabled={busy}
-            onClick={() => void act(() => onSave(draft.id, { title, content }))}
+            loading={busy}
+            loadingLabel="Salvataggio..."
+            onClick={() => void save()}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:opacity-45"
           >
             <Save size={16} />
             Salva
-          </button>
+          </LoadingButton>
         ) : null}
-        <button
+        <LoadingButton
           type="button"
-          disabled={busy}
+          loading={busy}
           onClick={() =>
-            void act(() =>
-              onRegenerate(
-                draft.id,
-                askFeedback("Rigenera mantenendo il Brand Profile e rendendo il testo piu concreto")
-              )
+            void act(
+              () =>
+                onRegenerate(
+                  draft.id,
+                  askFeedback("Rigenera mantenendo il Brand Profile e rendendo il testo piu concreto")
+                ),
+              "Bozza rigenerata",
+              "Errore rigenerazione bozza"
             )
           }
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-45"
         >
           <RotateCcw size={16} />
           Rigenera
-        </button>
-        <button
+        </LoadingButton>
+        <LoadingButton
           type="button"
-          disabled={busy}
+          loading={busy}
           onClick={() =>
-            void act(() =>
-              onRevision(
-                draft.id,
-                askFeedback("Rivedi la bozza: piu specifica, meno generica, piu aderente al mio tono")
-              )
+            void act(
+              () =>
+                onRevision(
+                  draft.id,
+                  askFeedback("Rivedi la bozza: piu specifica, meno generica, piu aderente al mio tono")
+                ),
+              "Revisione richiesta",
+              "Errore richiesta revisione"
             )
           }
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-amber-300/12 px-3 text-sm font-medium text-amber-100 transition hover:bg-amber-300/18 disabled:opacity-45"
         >
           <RotateCcw size={16} />
           Revisione
-        </button>
-        <button
+        </LoadingButton>
+        <LoadingButton
           type="button"
-          disabled={busy}
+          loading={busy}
           onClick={() =>
-            void act(() =>
-              onReject(draft.id, askFeedback("Rifiutata: non abbastanza concreta o non in linea col brand"))
+            void act(
+              () => onReject(draft.id, askFeedback("Rifiutata: non abbastanza concreta o non in linea col brand")),
+              "Bozza rifiutata",
+              "Errore rifiuto bozza"
             )
           }
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-rose-300/12 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-300/18 disabled:opacity-45"
         >
           <X size={16} />
           Rifiuta
-        </button>
-        <button
+        </LoadingButton>
+        <LoadingButton
           type="button"
-          disabled={busy}
-          onClick={() => void act(() => onApprove(draft.id))}
+          loading={busy}
+          onClick={() => void act(() => onApprove(draft.id), "Bozza approvata", "Errore approvazione bozza")}
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-300 px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 disabled:opacity-45"
         >
           <Check size={16} />
           Approva
-        </button>
+        </LoadingButton>
       </div>
     </article>
   );

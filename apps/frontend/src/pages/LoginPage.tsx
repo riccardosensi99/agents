@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { LockKeyhole } from "lucide-react";
 import type { User } from "../types/domain";
 import { api } from "../api/client";
+import { getGeneralErrorMessage } from "../api/error";
 
 type Props = {
   onLogin: (token: string, user: User) => void;
@@ -22,7 +23,7 @@ export function LoginPage({ onLogin }: Props) {
       const response = await api.login(email, password);
       onLogin(response.token, response.user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login non riuscito");
+      setError(getGeneralErrorMessage(err));
     } finally {
       setLoading(false);
     }

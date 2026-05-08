@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { Play, Send } from "lucide-react";
+import { getGeneralErrorMessage } from "../api/error";
 import type { Agent, Platform, Task, TaskPriority } from "../types/domain";
+import { FieldError } from "./forms/FieldError";
+import { FormError } from "./forms/FormError";
+import { LoadingButton } from "./forms/LoadingButton";
+import { useToast } from "./toast/ToastProvider";
 
 type Props = {
   agent: Agent;
@@ -28,9 +33,31 @@ export function TaskComposer({ agent, onCreate }: Props) {
   const [priority, setPriority] = useState<TaskPriority>("normal");
   const [scheduledAt, setScheduledAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string | undefined; prompt?: string | undefined }>({});
+  const toast = useToast();
 
   async function submit(runNow: boolean) {
+    const nextErrors = {
+      title: title.length > 160 ? "Massimo 160 caratteri." : undefined,
+      prompt:
+        prompt.trim().length < 5
+          ? "Minimo 5 caratteri."
+          : prompt.length > 5000
+            ? "Massimo 5000 caratteri."
+            : undefined
+    };
+
+    setFieldErrors(nextErrors);
+
+    if (nextErrors.title || nextErrors.prompt) {
+      setFormError("Controlla i campi evidenziati.");
+      toast.warning("Task non creato", "Titolo o prompt non validi.");
+      return;
+    }
+
     setSubmitting(true);
+    setFormError(null);
     try {
       await onCreate({
         title: title.trim() || `Task per ${agent.name}`,
@@ -41,6 +68,11 @@ export function TaskComposer({ agent, onCreate }: Props) {
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null
       });
       setTitle("");
+      toast.success(runNow ? "Task assegnato e avviato" : "Task assegnato");
+    } catch (err) {
+      const message = getGeneralErrorMessage(err);
+      setFormError(message);
+      toast.error("Errore assegnazione task", message);
     } finally {
       setSubmitting(false);
     }
@@ -55,16 +87,35 @@ export function TaskComposer({ agent, onCreate }: Props) {
       <div className="grid gap-3">
         <input
           value={title}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            setTitle(event.target.value);
+            setFieldErrors((current) => ({ ...current, title: undefined }));
+          }}
           placeholder="Titolo task"
-          className="h-11 rounded-xl border border-white/10 bg-slate-950/50 px-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/45"
+          aria-invalid={Boolean(fieldErrors.title)}
+          className={`h-11 rounded-xl border bg-slate-950/50 px-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/45 ${
+            fieldErrors.title ? "border-rose-300/50" : "border-white/10"
+          }`}
         />
+        <FieldError message={fieldErrors.title} />
         <textarea
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => {
+            setPrompt(event.target.value);
+            setFieldErrors((current) => ({ ...current, prompt: undefined }));
+          }}
           rows={5}
-          className="resize-none rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/45"
+          aria-invalid={Boolean(fieldErrors.prompt)}
+          className={`resize-none rounded-xl border bg-slate-950/50 p-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/45 ${
+            fieldErrors.prompt ? "border-rose-300/50" : "border-white/10"
+          }`}
         />
+        <div className="flex items-center justify-between gap-3">
+          <FieldError message={fieldErrors.prompt} />
+          <span className={prompt.length > 5000 ? "text-xs text-rose-200" : "text-xs text-slate-600"}>
+            {prompt.length}/5000
+          </span>
+        </div>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="grid gap-1 text-xs text-slate-500">
             Platform
@@ -102,6 +153,9 @@ export function TaskComposer({ agent, onCreate }: Props) {
           </label>
         </div>
       </div>
+      <div className="mt-3">
+        <FormError message={formError} />
+      </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {promptExamples.map((example) => (
           <button
@@ -115,24 +169,28 @@ export function TaskComposer({ agent, onCreate }: Props) {
         ))}
       </div>
       <div className="mt-4 flex flex-wrap justify-end gap-2">
-        <button
+        <LoadingButton
           type="button"
-          disabled={submitting || prompt.trim().length < 5}
+          loading={submitting}
+          disabled={prompt.trim().length < 5}
+          loadingLabel="Salvataggio..."
           onClick={() => void submit(false)}
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Send size={16} />
           Salva
-        </button>
-        <button
+        </LoadingButton>
+        <LoadingButton
           type="button"
-          disabled={submitting || prompt.trim().length < 5}
+          loading={submitting}
+          disabled={prompt.trim().length < 5}
+          loadingLabel="Avvio..."
           onClick={() => void submit(true)}
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Play size={16} />
           Salva e avvia
-        </button>
+        </LoadingButton>
       </div>
     </div>
   );
