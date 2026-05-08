@@ -45,11 +45,78 @@ const token = auth.token;
 const brand = await request("/settings/brand-profile", { token });
 console.log("brand profile", brand.data.ownerName || "configured");
 
+const telegramDisabled = await request("/telegram/webhook", {
+  method: "POST",
+  body: {}
+});
+
+if (telegramDisabled.ok !== true) {
+  throw new Error("Telegram disabled fallback did not return ok");
+}
+
 const agents = await request("/agents", { token });
 const agent = agents.data.find((item) => item.slug === "instaspark") ?? agents.data[0];
 
 if (!agent) {
   throw new Error("No agent found");
+}
+
+const smokeSlug = "smoke-agent";
+const existingSmokeAgent = agents.data.find((item) => item.slug === smokeSlug);
+const customAgent = existingSmokeAgent
+  ? { data: existingSmokeAgent }
+  : await request("/agents", {
+      method: "POST",
+      token,
+      body: {
+        name: "Smoke Agent",
+        slug: smokeSlug,
+        role: "Internal QA Agent",
+        description: "Temporary smoke test agent for CRUD and task assignment checks.",
+        avatarType: "custom-operator",
+        status: "idle",
+        config: {
+          platformTarget: "internal",
+          basePrompt: "Handle smoke checks only."
+        }
+      }
+    });
+
+const editedAgent = await request(`/agents/${customAgent.data.id}`, {
+  method: "PATCH",
+  token,
+  body: {
+    role: "Internal QA Agent Updated",
+    description: "Temporary smoke test agent updated successfully.",
+    config: {
+      platformTarget: "internal",
+      basePrompt: "Handle smoke checks and report concise results."
+    }
+  }
+});
+
+if (editedAgent.data.role !== "Internal QA Agent Updated") {
+  throw new Error("Agent update did not persist");
+}
+
+const customTask = await request(`/agents/${customAgent.data.id}/tasks`, {
+  method: "POST",
+  token,
+  body: {
+    title: "Smoke custom agent task",
+    prompt: "Create an internal smoke test note.",
+    platform: "internal",
+    priority: "low"
+  }
+});
+
+const customRun = await request(`/tasks/${customTask.data.id}/run`, {
+  method: "POST",
+  token
+});
+
+if (!customRun.data.draft?.id || customRun.data.draft.platform !== "internal") {
+  throw new Error("Custom agent did not create an internal draft");
 }
 
 const created = await request(`/agents/${agent.id}/tasks`, {
@@ -93,6 +160,8 @@ console.log(
   JSON.stringify(
     {
       ok: true,
+      customAgentId: customAgent.data.id,
+      customTaskId: customTask.data.id,
       taskId: created.data.id,
       draftId: run.data.draft.id,
       supervisorAction: run.data.supervisorReview.recommendedAction,
