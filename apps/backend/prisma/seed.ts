@@ -51,13 +51,32 @@ const agents = [
 async function main() {
   const passwordHash = await bcrypt.hash("changeme123", 12);
 
-  await prisma.user.upsert({
+  const owner = await prisma.user.upsert({
     where: { email: "owner@example.com" },
     update: {},
     create: {
       email: "owner@example.com",
       name: "Freelance Owner",
       passwordHash
+    }
+  });
+
+  await prisma.brandProfile.upsert({
+    where: { userId: owner.id },
+    update: {},
+    create: {
+      userId: owner.id,
+      ownerName: "Freelance Owner",
+      bio: "Freelance full-stack developer che aiuta piccole aziende e founder a trasformare idee in prodotti web deployabili.",
+      services: "Sviluppo web full-stack, dashboard SaaS, API Node.js, React, database PostgreSQL, Docker, deploy su VPS, integrazioni AI.",
+      technicalStack: "React, TypeScript, Node.js, Express, Prisma, PostgreSQL, Docker, Redis, TailwindCSS, OpenAI API.",
+      toneOfVoice: "Diretto, pratico, competente, umano. Evita hype, frasi motivazionali vuote e tono corporate finto.",
+      targetClients: "Founder, freelance, PMI e team piccoli che hanno bisogno di prodotti web affidabili, automazioni o dashboard operative.",
+      businessGoals: "Generare conversazioni con potenziali clienti, mostrare competenza tecnica concreta, posizionarsi come partner affidabile per prodotti full-stack.",
+      topicsToPush: "Docker nei progetti reali, deploy affidabili, AI tools usati bene, sviluppo full-stack pragmatico, esempi di workflow freelance.",
+      topicsToAvoid: "Promesse di guadagno facile, guru marketing, automation spam, pubblicazione automatica senza controllo umano.",
+      goodPostExamples: "Post con problema concreto, soluzione tecnica, mini esempio e CTA soft per aprire una conversazione.",
+      bannedWords: "rivoluzionario, game changer, segreto, mindset vincente, guadagno passivo"
     }
   });
 
