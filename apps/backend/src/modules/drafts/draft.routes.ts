@@ -6,10 +6,14 @@ import { AppError, notFound } from "../../lib/errors";
 import { validateBody, validateParams } from "../../middleware/validate";
 import {
   draftParamsSchema,
+  regenerateDraftSchema,
   patchDraftSchema,
   rejectDraftSchema,
   revisionRequestSchema
 } from "./draft.schemas";
+import { createDraftVersion } from "../../services/drafts/draftVersionService";
+import { regenerateDraft } from "../../services/drafts/draftRevisionService";
+import { createNotification } from "../../services/notifications/notificationService";
 
 export const draftRoutes = Router();
 
@@ -24,10 +28,11 @@ const paramId = (id: string | undefined) => {
 draftRoutes.get(
   "/",
   asyncHandler(async (_req, res) => {
-    const drafts = await prisma.draft.findMany({
+    const drafts = await (prisma as any).draft.findMany({
       include: {
         agent: true,
         task: true,
+        versions: { orderBy: { version: "desc" } },
         approvals: {
           include: { user: true },
           orderBy: { createdAt: "desc" }
@@ -46,7 +51,7 @@ draftRoutes.patch(
   validateBody(patchDraftSchema),
   asyncHandler(async (req, res) => {
     const id = paramId(req.params.id);
-    const draft = await prisma.draft.findUnique({
+    const draft = await (prisma as any).draft.findUnique({
       where: { id }
     });
 
@@ -54,9 +59,24 @@ draftRoutes.patch(
       throw notFound("Draft");
     }
 
-    const updated = await prisma.draft.update({
+    let nextVersion: number | undefined;
+    const shouldVersion = Boolean(req.body.content || req.body.title);
+
+    if (shouldVersion) {
+      nextVersion = await createDraftVersion({
+        draft,
+        title: req.body.title ?? draft.title,
+        content: req.body.content ?? draft.content,
+        createdBy: req.user?.email ?? "manual-edit"
+      });
+    }
+
+    const updated = await (prisma as any).draft.update({
       where: { id: draft.id },
-      data: req.body
+      data: {
+        ...req.body,
+        currentVersion: nextVersion ?? draft.currentVersion
+      }
     });
 
     if (req.body.content || req.body.title || req.body.status) {
@@ -83,7 +103,7 @@ async function transitionDraft(
   action: "approve" | "reject" | "request_revision",
   comment?: string
 ) {
-  const draft = await prisma.draft.findUnique({
+  const draft = await (prisma as any).draft.findUnique({
     where: { id: draftId },
     include: { task: true, agent: true }
   });
@@ -93,9 +113,9 @@ async function transitionDraft(
   }
 
   const nextTaskStatus =
-    status === "approved" ? "completed" : status === "rejected" ? "rejected" : "pending";
+    status === "approved" ? "completed" : status === "rejected" ? "rejected" : "revision_requested";
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     const savedDraft = await tx.draft.update({
       where: { id: draft.id },
       data: { status }
@@ -115,7 +135,19 @@ async function transitionDraft(
     if (draft.taskId) {
       await tx.task.update({
         where: { id: draft.taskId },
-        data: { status: nextTaskStatus }
+        data: {
+          status: nextTaskStatus,
+          completedAt: status === "approved" ? new Date() : null
+        }
+      });
+
+      await tx.taskEvent.create({
+        data: {
+          taskId: draft.taskId,
+          type: `draft.${status}`,
+          message: `Draft ${status}`,
+          meta: { draftId: draft.id, action }
+        }
       });
     }
 
@@ -133,6 +165,13 @@ async function transitionDraft(
     });
 
     return savedDraft;
+  });
+
+  await createNotification({
+    type: `draft.${status}`,
+    title: status === "approved" ? "Bozza approvata" : status === "rejected" ? "Bozza rifiutata" : "Revisione richiesta",
+    message: `${draft.title}: ${comment ?? status}`,
+    meta: { draftId: draft.id, taskId: draft.taskId, action }
   });
 
   return updated;
@@ -171,13 +210,28 @@ draftRoutes.post(
   validateBody(revisionRequestSchema),
   asyncHandler(async (req, res) => {
     const id = paramId(req.params.id);
-    const draft = await transitionDraft(
-      id,
-      req.user?.id ?? null,
-      "revision_requested",
-      "request_revision",
-      req.body.comment
-    );
-    res.json({ data: draft });
+    const result = await regenerateDraft({
+      draftId: id,
+      userId: req.user?.id ?? null,
+      comment: req.body.comment,
+      action: "request_revision"
+    });
+    res.json({ data: result });
+  })
+);
+
+draftRoutes.post(
+  "/:id/regenerate",
+  validateParams(draftParamsSchema),
+  validateBody(regenerateDraftSchema),
+  asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
+    const result = await regenerateDraft({
+      draftId: id,
+      userId: req.user?.id ?? null,
+      comment: req.body.comment,
+      action: "regenerate"
+    });
+    res.json({ data: result });
   })
 );

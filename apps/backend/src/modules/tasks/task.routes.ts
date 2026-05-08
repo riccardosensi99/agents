@@ -3,7 +3,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../lib/asyncHandler";
 import { AppError, notFound } from "../../lib/errors";
 import { validateParams } from "../../middleware/validate";
-import { runTask } from "../../services/tasks/taskRunner";
+import { cancelTask, retryTask, runTask } from "../../services/tasks/taskRunner";
 import { taskParamsSchema } from "./task.schemas";
 
 export const taskRoutes = Router();
@@ -19,10 +19,11 @@ const paramId = (id: string | undefined) => {
 taskRoutes.get(
   "/",
   asyncHandler(async (_req, res) => {
-    const tasks = await prisma.task.findMany({
+    const tasks = await (prisma as any).task.findMany({
       include: {
         agent: true,
-        drafts: true
+        drafts: true,
+        events: { orderBy: { createdAt: "desc" }, take: 20 }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -36,11 +37,12 @@ taskRoutes.get(
   validateParams(taskParamsSchema),
   asyncHandler(async (req, res) => {
     const id = paramId(req.params.id);
-    const task = await prisma.task.findUnique({
+    const task = await (prisma as any).task.findUnique({
       where: { id },
       include: {
         agent: true,
-        drafts: true
+        drafts: true,
+        events: { orderBy: { createdAt: "desc" } }
       }
     });
 
@@ -59,5 +61,25 @@ taskRoutes.post(
     const id = paramId(req.params.id);
     const result = await runTask(id);
     res.json({ data: result });
+  })
+);
+
+taskRoutes.post(
+  "/:id/retry",
+  validateParams(taskParamsSchema),
+  asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
+    const result = await retryTask(id);
+    res.json({ data: result });
+  })
+);
+
+taskRoutes.post(
+  "/:id/cancel",
+  validateParams(taskParamsSchema),
+  asyncHandler(async (req, res) => {
+    const id = paramId(req.params.id);
+    const task = await cancelTask(id);
+    res.json({ data: task });
   })
 );

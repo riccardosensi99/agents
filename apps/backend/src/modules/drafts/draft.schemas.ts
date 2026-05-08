@@ -25,3 +25,7 @@ export const revisionRequestSchema = z.object({
 export const rejectDraftSchema = z.object({
   comment: z.string().max(2000).optional()
 });
+
+export const regenerateDraftSchema = z.object({
+  comment: z.string().max(2000).optional()
+});

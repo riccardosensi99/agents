@@ -20,11 +20,14 @@ async function createScheduledTask(agentSlug: string, title: string, prompt: str
     return;
   }
 
-  const task = await prisma.task.create({
+  const task = await (prisma as any).task.create({
     data: {
       agentId: agent.id,
       title,
-      prompt
+      prompt,
+      platform: agent.slug === "instaspark" ? "instagram" : agent.slug === "linkforge" ? "linkedin" : "internal",
+      priority: "normal",
+      scheduledAt: new Date()
     }
   });
 
@@ -44,8 +47,12 @@ export function startScheduler() {
     return;
   }
 
+  if (!cron.validate(env.INSTAGRAM_CRON) || !cron.validate(env.LINKEDIN_CRON)) {
+    throw new Error("Invalid scheduler cron expression");
+  }
+
   jobs.push(
-    cron.schedule("0 9 * * 1,3,5", () => {
+    cron.schedule(env.INSTAGRAM_CRON, () => {
       void createScheduledTask(
         "instaspark",
         "Scheduled Instagram draft",
@@ -55,7 +62,7 @@ export function startScheduler() {
   );
 
   jobs.push(
-    cron.schedule("0 9 * * 2,4", () => {
+    cron.schedule(env.LINKEDIN_CRON, () => {
       void createScheduledTask(
         "linkforge",
         "Scheduled LinkedIn draft",
