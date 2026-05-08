@@ -8,7 +8,7 @@ import {
   type RoomObject,
   type RoomZones
 } from "./roomConfig";
-import { AgentSprite } from "./AgentSprite";
+import { AgentSprite, registerAgentSpriteTextures } from "./AgentSprite";
 import type { AgentRoomSceneCallbacks, AgentRoomSnapshot, RoomAgentIntent, RoomPoint } from "./types";
 
 export class AgentRoomScene extends Phaser.Scene {
@@ -34,7 +34,7 @@ export class AgentRoomScene extends Phaser.Scene {
   }
 
   preload() {
-    this.generateAgentTextures();
+    registerAgentSpriteTextures(this);
   }
 
   create() {
@@ -73,7 +73,7 @@ export class AgentRoomScene extends Phaser.Scene {
       if (!hasTarget && time >= (this.nextDecisionAt.get(agent.id) ?? 0)) {
         const target = this.pickTarget(agent, intent);
         sprite.setTarget(target);
-        this.nextDecisionAt.set(agent.id, time + Phaser.Math.Between(2600, agent.slug === "overseer" ? 6200 : 4800));
+        this.nextDecisionAt.set(agent.id, time + this.decisionDelayForAgent(agent, intent, Boolean(target)));
       }
 
       sprite.setMode(modeForIntent(intent, Boolean(sprite.getTarget())));
@@ -105,6 +105,30 @@ export class AgentRoomScene extends Phaser.Scene {
       zones: this.zones,
       otherAgents
     });
+  }
+
+  private decisionDelayForAgent(agent: Agent, intent: RoomAgentIntent, hasTarget: boolean) {
+    if (intent === "stopped_error") {
+      return Phaser.Math.Between(3800, 6800);
+    }
+
+    if (!hasTarget) {
+      return Phaser.Math.Between(1300, agent.slug === "linkforge" ? 4200 : 3000);
+    }
+
+    if (agent.slug === "instaspark") {
+      return Phaser.Math.Between(2600, 4700);
+    }
+
+    if (agent.slug === "overseer") {
+      return Phaser.Math.Between(5800, 9400);
+    }
+
+    if (agent.slug === "linkforge") {
+      return Phaser.Math.Between(5200, 8600);
+    }
+
+    return Phaser.Math.Between(4200, 7200);
   }
 
   private syncSprites() {
@@ -321,6 +345,7 @@ export class AgentRoomScene extends Phaser.Scene {
     this.drawPlant(furniture, objects.rightPlant);
 
     this.foregroundLayer = furniture;
+    this.drawObjectOccluders();
   }
 
   private drawForegroundDetails() {
@@ -384,7 +409,7 @@ export class AgentRoomScene extends Phaser.Scene {
     }
   }
 
-  private drawDesk(graphics: Phaser.GameObjects.Graphics, desk: RoomObject, label: string, doubleMonitor = false) {
+  private drawDesk(graphics: Phaser.GameObjects.Graphics, desk: RoomObject, _label: string, doubleMonitor = false) {
     this.drawObjectShadow(graphics, desk.x + desk.width / 2, desk.y + desk.height - 8, desk.width * 0.92, 34);
     graphics.fillStyle(0x5b3b2f, 1);
     graphics.fillRoundedRect(desk.x, desk.y + 56, desk.width, 58, 10);
@@ -406,16 +431,8 @@ export class AgentRoomScene extends Phaser.Scene {
     graphics.fillStyle(0x111827, 0.72);
     graphics.fillRoundedRect(desk.x + desk.width / 2 - 28, desk.y + 100, 56, 8, 4);
 
-    const text = this.add
-      .text(desk.x + desk.width / 2, desk.y + 132, label, {
-        color: "#fed7aa",
-        fontFamily: "monospace",
-        fontSize: "10px",
-        fontStyle: "bold"
-      })
-      .setOrigin(0.5)
-      .setDepth(desk.y + desk.height - 2);
-    this.ambientObjects.push(text);
+    graphics.fillStyle(0xfed7aa, 0.18);
+    graphics.fillRoundedRect(desk.x + desk.width / 2 - 26, desk.y + 116, 52, 5, 3);
   }
 
   private drawMonitor(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number, accent: number) {
@@ -504,6 +521,83 @@ export class AgentRoomScene extends Phaser.Scene {
     graphics.fillEllipse(x, y, width, height);
   }
 
+  private drawObjectOccluders() {
+    const { objects } = this.layout;
+
+    this.drawDeskOccluder(objects.socialDesk);
+    this.drawDeskOccluder(objects.devDesk);
+    this.drawSupervisorOccluder(objects.supervisorDesk);
+    this.drawApprovalBoardOccluder(objects.approvalBoardObject);
+    this.drawMeetingTableOccluder(objects.meetingTable);
+    this.drawCoffeeBarOccluder(objects.coffeeBar);
+    this.drawPlantOccluder(objects.leftPlant);
+    this.drawPlantOccluder(objects.rightPlant);
+  }
+
+  private drawDeskOccluder(desk: RoomObject) {
+    const front = this.add.graphics().setDepth(Math.round(desk.y + desk.height - 10));
+    front.fillStyle(0x3a241e, 0.92);
+    front.fillRoundedRect(desk.x + 10, desk.y + 82, desk.width - 20, 36, 8);
+    front.fillStyle(0xb8794d, 0.95);
+    front.fillRoundedRect(desk.x + 18, desk.y + 78, desk.width - 36, 11, 5);
+    front.fillStyle(desk.accent, 0.24);
+    front.fillRoundedRect(desk.x + desk.width / 2 - 42, desk.y + 93, 84, 7, 3);
+    front.fillStyle(0x1f2937, 0.74);
+    front.fillRoundedRect(desk.x + 26, desk.y + 101, 34, 15, 4);
+    front.fillRoundedRect(desk.x + desk.width - 60, desk.y + 101, 34, 15, 4);
+    this.ambientObjects.push(front);
+  }
+
+  private drawSupervisorOccluder(desk: RoomObject) {
+    const front = this.add.graphics().setDepth(Math.round(desk.y + desk.height - 8));
+    front.fillStyle(0x271545, 0.94);
+    front.fillRoundedRect(desk.x + 8, desk.y + 84, desk.width - 16, 52, 12);
+    front.fillStyle(0x8b5cf6, 0.28);
+    front.fillRoundedRect(desk.x + 26, desk.y + 99, desk.width - 52, 10, 5);
+    front.fillStyle(0x111827, 0.72);
+    front.fillRoundedRect(desk.x + desk.width / 2 - 34, desk.y + 115, 68, 9, 4);
+    this.ambientObjects.push(front);
+  }
+
+  private drawApprovalBoardOccluder(board: RoomObject) {
+    const front = this.add.graphics().setDepth(Math.round(board.y + board.height - 4));
+    front.fillStyle(0x24150d, 0.88);
+    front.fillRoundedRect(board.x + 8, board.y + board.height - 34, board.width - 16, 28, 7);
+    front.fillStyle(board.accent, 0.26);
+    front.fillRoundedRect(board.x + 28, board.y + board.height - 23, board.width - 56, 7, 3);
+    this.ambientObjects.push(front);
+  }
+
+  private drawMeetingTableOccluder(table: RoomObject) {
+    const front = this.add.graphics().setDepth(Math.round(table.y + table.height / 2 + 22));
+    front.fillStyle(0x5a3f2c, 0.9);
+    front.fillEllipse(table.x + table.width / 2, table.y + table.height / 2 + 10, table.width * 0.88, table.height * 0.44);
+    front.lineStyle(2, 0xc79a62, 0.52);
+    front.strokeEllipse(table.x + table.width / 2, table.y + table.height / 2 + 10, table.width * 0.88, table.height * 0.44);
+    this.ambientObjects.push(front);
+  }
+
+  private drawCoffeeBarOccluder(bar: RoomObject) {
+    const front = this.add.graphics().setDepth(Math.round(bar.y + bar.height - 4));
+    front.fillStyle(0x3d281f, 0.92);
+    front.fillRoundedRect(bar.x + 8, bar.y + 55, bar.width - 16, 42, 8);
+    front.fillStyle(0xf59e0b, 0.2);
+    front.fillRoundedRect(bar.x + 24, bar.y + 68, bar.width - 48, 7, 3);
+    this.ambientObjects.push(front);
+  }
+
+  private drawPlantOccluder(plant: RoomObject) {
+    const front = this.add.graphics().setDepth(Math.round(plant.y + plant.height - 2));
+    front.fillStyle(0x15803d, 0.92);
+    front.fillEllipse(plant.x + plant.width / 2 - 13, plant.y + 48, 24, 30);
+    front.fillEllipse(plant.x + plant.width / 2 + 14, plant.y + 48, 24, 30);
+    front.fillStyle(0x7c2d12, 1);
+    front.fillRoundedRect(plant.x + 10, plant.y + 59, plant.width - 20, 28, 6);
+    front.fillStyle(0xf59e0b, 0.22);
+    front.fillRoundedRect(plant.x + 15, plant.y + 66, plant.width - 30, 5, 3);
+    this.ambientObjects.push(front);
+  }
+
   private clearAmbientObjects() {
     for (const item of this.ambientObjects) {
       item.destroy();
@@ -511,91 +605,4 @@ export class AgentRoomScene extends Phaser.Scene {
     this.ambientObjects = [];
   }
 
-  private generateAgentTextures() {
-    if (this.textures.exists("agent-instaspark")) {
-      return;
-    }
-
-    this.generateCreatureTexture("agent-instaspark", {
-      body: 0xfb923c,
-      belly: 0xfacc15,
-      eye: 0x111827,
-      size: 62,
-      ears: true
-    });
-    this.generateCreatureTexture("agent-linkforge", {
-      body: 0x22d3ee,
-      belly: 0x14b8a6,
-      eye: 0x020617,
-      size: 60,
-      angular: true
-    });
-    this.generateCreatureTexture("agent-overseer", {
-      body: 0xa78bfa,
-      belly: 0x22d3ee,
-      eye: 0x020617,
-      size: 76,
-      crown: true
-    });
-  }
-
-  private generateCreatureTexture(
-    key: string,
-    options: { body: number; belly: number; eye: number; size: number; ears?: boolean; angular?: boolean; crown?: boolean }
-  ) {
-    const graphics = this.make.graphics({ x: 0, y: 0 }, false);
-    const width = 104;
-    const height = 104;
-    const cx = width / 2;
-    const cy = 58;
-
-    graphics.fillStyle(0x000000, 0.22);
-    graphics.fillEllipse(cx, 88, options.size, 14);
-    graphics.fillStyle(options.body, 1);
-
-    if (options.angular) {
-      graphics.fillPoints(
-        [
-          { x: cx, y: 14 },
-          { x: cx + 34, y: 34 },
-          { x: cx + 30, y: 76 },
-          { x: cx, y: 96 },
-          { x: cx - 30, y: 76 },
-          { x: cx - 34, y: 34 }
-        ],
-        true
-      );
-    } else {
-      graphics.fillEllipse(cx, cy, options.size, options.size + 10);
-    }
-
-    if (options.ears) {
-      graphics.fillTriangle(cx - 30, 36, cx - 44, 12, cx - 14, 28);
-      graphics.fillTriangle(cx + 30, 36, cx + 44, 12, cx + 14, 28);
-    }
-
-    if (options.crown) {
-      graphics.fillStyle(0xfef3c7, 0.9);
-      graphics.fillTriangle(cx - 28, 28, cx - 18, 8, cx - 8, 28);
-      graphics.fillTriangle(cx - 8, 28, cx, 4, cx + 8, 28);
-      graphics.fillTriangle(cx + 8, 28, cx + 18, 8, cx + 28, 28);
-      graphics.fillStyle(options.body, 1);
-    }
-
-    graphics.fillStyle(options.belly, 0.62);
-    graphics.fillEllipse(cx, cy + 12, options.size * 0.52, options.size * 0.44);
-    graphics.fillStyle(options.eye, 1);
-    graphics.fillCircle(cx - 14, cy - 5, options.size > 70 ? 7 : 6);
-    graphics.fillCircle(cx + 14, cy - 5, options.size > 70 ? 7 : 6);
-    graphics.fillStyle(0xffffff, 0.95);
-    graphics.fillCircle(cx - 12, cy - 8, 2);
-    graphics.fillCircle(cx + 16, cy - 8, 2);
-    graphics.lineStyle(4, options.eye, 1);
-    graphics.beginPath();
-    graphics.arc(cx, cy + 14, 10, 0.15, Math.PI - 0.15);
-    graphics.strokePath();
-
-    graphics.generateTexture(key, width, height);
-    graphics.destroy();
-  }
 }
