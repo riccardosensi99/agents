@@ -1,9 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import { api } from "./api/client";
+import { getGeneralErrorMessage } from "./api/error";
 import { Sidebar, type ViewKey } from "./components/Sidebar";
 import { RouteLoadBoundary } from "./components/RouteLoadBoundary";
 import { Topbar } from "./components/Topbar";
+import { ToastProvider, useToast } from "./components/toast/ToastProvider";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DraftsPage } from "./pages/DraftsPage";
@@ -67,6 +69,14 @@ const viewFromPath = (path: string): ViewKey => {
 };
 
 export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+function AppContent() {
   const [auth, setAuth] = useState<AuthState | null>(() => storedAuth());
   const [activeView, setActiveView] = useState<ViewKey>(() => viewFromPath(window.location.pathname));
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -79,15 +89,18 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const token = auth?.token;
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (options: { silent?: boolean; notify?: boolean } = {}) => {
     if (!token) {
       return;
     }
 
-    setLoading(true);
+    if (!options.silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [nextAgents, nextTasks, nextDrafts, nextSystem, nextNotifications] = await Promise.all([
@@ -102,12 +115,21 @@ export default function App() {
       setDrafts(nextDrafts);
       setSystemStatus(nextSystem);
       setNotifications(nextNotifications);
+      if (options.notify) {
+        toast.success("Dati sincronizzati");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore caricamento dati");
+      const message = getGeneralErrorMessage(err);
+      setError(message);
+      if (options.notify) {
+        toast.error("Sincronizzazione non riuscita", message);
+      }
     } finally {
-      setLoading(false);
+      if (!options.silent) {
+        setLoading(false);
+      }
     }
-  }, [token]);
+  }, [toast, token]);
 
   const loadSelectedAgent = useCallback(async () => {
     if (!token || !selectedAgentId) {
@@ -115,8 +137,12 @@ export default function App() {
       return;
     }
 
-    const agent = await api.getAgent(token, selectedAgentId);
-    setSelectedAgent(agent);
+    try {
+      const agent = await api.getAgent(token, selectedAgentId);
+      setSelectedAgent(agent);
+    } catch (err) {
+      setError(getGeneralErrorMessage(err));
+    }
   }, [selectedAgentId, token]);
 
   useEffect(() => {
@@ -129,7 +155,7 @@ export default function App() {
     }
 
     const interval = window.setInterval(() => {
-      void loadAll();
+      void loadAll({ silent: true });
     }, 5000);
 
     return () => window.clearInterval(interval);
@@ -144,10 +170,12 @@ export default function App() {
       return;
     }
 
-    void Promise.all([api.getBrandProfile(token), api.getNotifications(token)]).then(([profile, nextNotifications]) => {
-      setBrandProfile(profile);
-      setNotifications(nextNotifications);
-    });
+    void Promise.all([api.getBrandProfile(token), api.getNotifications(token)])
+      .then(([profile, nextNotifications]) => {
+        setBrandProfile(profile);
+        setNotifications(nextNotifications);
+      })
+      .catch((err) => setError(getGeneralErrorMessage(err)));
   }, [token]);
 
   useEffect(() => {
@@ -321,6 +349,18 @@ export default function App() {
         const nextNotifications = await api.markAllNotificationsRead(token);
         setNotifications(nextNotifications);
         await loadAll();
+      },
+      async markNotificationRead(notificationId: string) {
+        if (!token) {
+          return;
+        }
+        await api.markNotificationRead(token, notificationId);
+        const nextNotifications = await api.getNotifications(token);
+        setNotifications(nextNotifications);
+        await loadAll();
+      },
+      async refreshData() {
+        await loadAll({ notify: true });
       }
     }),
     [loadAll, loadSelectedAgent, token]
@@ -376,7 +416,7 @@ export default function App() {
               tasks={tasks}
               drafts={drafts}
               status={systemStatus}
-              onRefresh={loadAll}
+              onRefresh={handlers.refreshData}
               onOpenAgent={openAgent}
               onPauseAgent={handlers.pauseAgent}
               onCreateTask={handlers.createTask}
@@ -436,6 +476,7 @@ export default function App() {
           notifications={notifications}
           onSaveBrandProfile={handlers.saveBrandProfile}
           onMarkNotificationsRead={handlers.markNotificationsRead}
+          onMarkNotificationRead={handlers.markNotificationRead}
         />
       );
     }

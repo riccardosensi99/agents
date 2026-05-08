@@ -1,4 +1,5 @@
 import type { Agent, BrandProfile, Draft, Notification, Platform, SystemStatus, Task, TaskPriority, User } from "../types/domain";
+import { errorFromResponse } from "./error";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
@@ -16,15 +17,6 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT";
   body?: unknown;
 };
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number
-  ) {
-    super(message);
-  }
-}
 
 async function request<T>(path: string, options: RequestOptions = {}) {
   const headers: HeadersInit = {
@@ -44,11 +36,17 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     init.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(`${API_URL}${path}`, init);
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, init);
+  } catch (error) {
+    throw error;
+  }
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new ApiError(payload?.error ?? "API request failed", response.status);
+    const payload = await response.json().catch(() => null);
+    throw errorFromResponse(response.status, payload);
   }
 
   return (await response.json()) as T;
@@ -202,6 +200,14 @@ export const api = {
 
   async markAllNotificationsRead(token: string) {
     const response = await request<ApiEnvelope<Notification[]>>("/system/notifications/read-all", {
+      token,
+      method: "POST"
+    });
+    return response.data;
+  },
+
+  async markNotificationRead(token: string, notificationId: string) {
+    const response = await request<ApiEnvelope<Notification>>(`/system/notifications/${notificationId}/read`, {
       token,
       method: "POST"
     });

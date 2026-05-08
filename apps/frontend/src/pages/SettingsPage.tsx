@@ -1,7 +1,13 @@
 import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getGeneralErrorMessage } from "../api/error";
+import { FieldError } from "../components/forms/FieldError";
+import { FormError } from "../components/forms/FormError";
+import { LoadingButton } from "../components/forms/LoadingButton";
+import { useToast } from "../components/toast/ToastProvider";
 import type { BrandProfile, Notification, SystemStatus } from "../types/domain";
 import { formatDate } from "../utils/format";
+import { fieldErrorsFromApi, hasFieldErrors, maxLengthError, type FieldErrors } from "../utils/formErrors";
 
 type Props = {
   status?: SystemStatus | null;
@@ -9,26 +15,67 @@ type Props = {
   notifications: Notification[];
   onSaveBrandProfile: (body: Partial<BrandProfile>) => Promise<void>;
   onMarkNotificationsRead: () => Promise<void>;
+  onMarkNotificationRead: (notificationId: string) => Promise<void>;
 };
 
-const fields: Array<{ key: keyof BrandProfile; label: string; rows: number }> = [
-  { key: "ownerName", label: "Chi sono", rows: 2 },
-  { key: "bio", label: "Bio / posizionamento", rows: 3 },
-  { key: "services", label: "Servizi offerti", rows: 3 },
-  { key: "technicalStack", label: "Stack tecnico", rows: 3 },
-  { key: "toneOfVoice", label: "Tono comunicativo", rows: 3 },
-  { key: "targetClients", label: "Target clienti", rows: 3 },
-  { key: "businessGoals", label: "Obiettivi commerciali", rows: 3 },
-  { key: "topicsToPush", label: "Argomenti da spingere", rows: 3 },
-  { key: "topicsToAvoid", label: "Argomenti da evitare", rows: 3 },
-  { key: "goodPostExamples", label: "Esempi di post buoni", rows: 4 },
-  { key: "bannedWords", label: "Parole/frasi da evitare", rows: 3 }
+type BrandProfileField =
+  | "ownerName"
+  | "bio"
+  | "services"
+  | "technicalStack"
+  | "toneOfVoice"
+  | "targetClients"
+  | "businessGoals"
+  | "topicsToPush"
+  | "topicsToAvoid"
+  | "goodPostExamples"
+  | "bannedWords";
+
+const fields: Array<{ key: BrandProfileField; label: string; rows: number; max: number }> = [
+  { key: "ownerName", label: "Chi sono", rows: 2, max: 160 },
+  { key: "bio", label: "Bio / posizionamento", rows: 3, max: 4000 },
+  { key: "services", label: "Servizi offerti", rows: 3, max: 4000 },
+  { key: "technicalStack", label: "Stack tecnico", rows: 3, max: 3000 },
+  { key: "toneOfVoice", label: "Tono comunicativo", rows: 3, max: 3000 },
+  { key: "targetClients", label: "Target clienti", rows: 3, max: 3000 },
+  { key: "businessGoals", label: "Obiettivi commerciali", rows: 3, max: 3000 },
+  { key: "topicsToPush", label: "Argomenti da spingere", rows: 3, max: 3000 },
+  { key: "topicsToAvoid", label: "Argomenti da evitare", rows: 3, max: 3000 },
+  { key: "goodPostExamples", label: "Esempi di post buoni", rows: 4, max: 6000 },
+  { key: "bannedWords", label: "Parole/frasi da evitare", rows: 3, max: 3000 }
 ];
 
-export function SettingsPage({ status, brandProfile, notifications, onSaveBrandProfile, onMarkNotificationsRead }: Props) {
+const fieldKeys = fields.map((field) => field.key);
+
+function validateBrandProfile(form: Partial<BrandProfile>) {
+  const errors: FieldErrors<BrandProfileField> = {};
+
+  for (const field of fields) {
+    const value = String(form[field.key] ?? "");
+    const error = maxLengthError(value, field.max);
+    if (error) {
+      errors[field.key] = error;
+    }
+  }
+
+  return errors;
+}
+
+export function SettingsPage({
+  status,
+  brandProfile,
+  notifications,
+  onSaveBrandProfile,
+  onMarkNotificationsRead,
+  onMarkNotificationRead
+}: Props) {
   const [form, setForm] = useState<Partial<BrandProfile>>({});
   const [saving, setSaving] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [markingNotificationId, setMarkingNotificationId] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<BrandProfileField>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (brandProfile) {
@@ -37,9 +84,29 @@ export function SettingsPage({ status, brandProfile, notifications, onSaveBrandP
   }, [brandProfile]);
 
   async function save() {
+    const nextErrors = validateBrandProfile(form);
+    setFieldErrors(nextErrors);
+    setFormError(null);
+
+    if (hasFieldErrors(nextErrors)) {
+      const message = "Alcuni campi superano il limite massimo.";
+      setFormError(message);
+      toast.warning("Profilo non salvato", message);
+      return;
+    }
+
     setSaving(true);
     try {
       await onSaveBrandProfile(form);
+      setFieldErrors({});
+      setFormError(null);
+      toast.success("Profilo salvato correttamente");
+    } catch (err) {
+      const message = getGeneralErrorMessage(err);
+      const apiFieldErrors = fieldErrorsFromApi(err, fieldKeys);
+      setFieldErrors(apiFieldErrors);
+      setFormError(message);
+      toast.error("Errore salvataggio profilo", message);
     } finally {
       setSaving(false);
     }
@@ -49,8 +116,23 @@ export function SettingsPage({ status, brandProfile, notifications, onSaveBrandP
     setMarkingRead(true);
     try {
       await onMarkNotificationsRead();
+      toast.success("Notifiche segnate come lette");
+    } catch (err) {
+      toast.error("Operazione non riuscita", getGeneralErrorMessage(err));
     } finally {
       setMarkingRead(false);
+    }
+  }
+
+  async function markSingleRead(notificationId: string) {
+    setMarkingNotificationId(notificationId);
+    try {
+      await onMarkNotificationRead(notificationId);
+      toast.success("Notifica segnata come letta");
+    } catch (err) {
+      toast.error("Operazione non riuscita", getGeneralErrorMessage(err));
+    } finally {
+      setMarkingNotificationId(null);
     }
   }
 
@@ -75,28 +157,53 @@ export function SettingsPage({ status, brandProfile, notifications, onSaveBrandP
             <h3 className="text-base font-semibold text-white">Brand Profile</h3>
             <p className="mt-1 text-sm text-slate-500">Usato da InstaSpark, LinkForge e Overseer per evitare output generici.</p>
           </div>
-          <button
+          <LoadingButton
             type="button"
-            disabled={saving}
+            loading={saving}
+            loadingLabel="Salvataggio..."
             onClick={() => void save()}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:opacity-45"
           >
             <Save size={16} />
             Salva profilo
-          </button>
+          </LoadingButton>
+        </div>
+        <div className="mt-4">
+          <FormError message={formError} />
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {fields.map((field) => (
-            <label key={field.key} className="grid gap-1 text-xs text-slate-500">
-              {field.label}
-              <textarea
-                value={String(form[field.key] ?? "")}
-                onChange={(event) => setForm((current) => ({ ...current, [field.key]: event.target.value }))}
-                rows={field.rows}
-                className="resize-none rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-300/45"
-              />
-            </label>
-          ))}
+          {fields.map((field) => {
+            const value = String(form[field.key] ?? "");
+            const hasError = Boolean(fieldErrors[field.key]);
+
+            return (
+              <label key={field.key} className="grid gap-1 text-xs text-slate-500">
+                <span className="flex items-center justify-between gap-3">
+                  <span>{field.label}</span>
+                  <span className={value.length > field.max ? "text-rose-200" : "text-slate-600"}>
+                    {value.length}/{field.max}
+                  </span>
+                </span>
+                <textarea
+                  value={value}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setForm((current) => ({ ...current, [field.key]: nextValue }));
+                    setFieldErrors((current) => ({
+                      ...current,
+                      [field.key]: maxLengthError(nextValue, field.max)
+                    }));
+                  }}
+                  rows={field.rows}
+                  aria-invalid={hasError}
+                  className={`resize-none rounded-xl border bg-slate-950/50 p-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-300/45 ${
+                    hasError ? "border-rose-300/50" : "border-white/10"
+                  }`}
+                />
+                <FieldError message={fieldErrors[field.key]} />
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -113,23 +220,38 @@ export function SettingsPage({ status, brandProfile, notifications, onSaveBrandP
         <div className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-base font-semibold text-white">Notifiche recenti</h3>
-            <button
+            <LoadingButton
               type="button"
-              disabled={markingRead || notifications.length === 0}
+              disabled={notifications.length === 0}
+              loading={markingRead}
+              loadingLabel="Salvataggio..."
               onClick={() => void markRead()}
               className="inline-flex h-9 items-center rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-45"
             >
               Segna lette
-            </button>
+            </LoadingButton>
           </div>
           <div className="mt-4 space-y-3">
             {notifications.slice(0, 8).map((notification) => (
               <div key={notification.id} className="rounded-xl border border-white/10 bg-slate-950/30 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium text-slate-100">{notification.title}</p>
-                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase text-slate-500">
-                    {notification.status}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase text-slate-500">
+                      {notification.status}
+                    </span>
+                    {notification.status === "unread" ? (
+                      <LoadingButton
+                        type="button"
+                        loading={markingNotificationId === notification.id}
+                        loadingLabel="..."
+                        onClick={() => void markSingleRead(notification.id)}
+                        className="h-7 rounded-lg border border-white/10 px-2 text-[10px] font-medium uppercase text-slate-300 transition hover:bg-white/10"
+                      >
+                        Letta
+                      </LoadingButton>
+                    ) : null}
+                  </div>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-400">{notification.message}</p>
                 <p className="mt-2 text-xs text-slate-600">{formatDate(notification.createdAt)}</p>
