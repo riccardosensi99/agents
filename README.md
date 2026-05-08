@@ -302,6 +302,16 @@ Per verificare errori di validazione e messaggi operativi:
 
 Lo stesso sistema di toast/loading/errori copre creazione e run task, retry/cancel, modifica/approval/revision/regenerate bozze, update agente, pausa agente e notifiche.
 
+Errori da verificare durante sviluppo:
+
+- Backend offline/CORS: ferma il backend e salva un form. Atteso: `Il backend non e raggiungibile.`
+- Validation 400: `ownerName` oltre 160 caratteri. Atteso: errore campo, non messaggio offline.
+- Auth 401: rimuovi o altera il token in localStorage. Atteso: `Sessione scaduta, effettua di nuovo il login.`
+- Rate limit 429: abbassa temporaneamente `RATE_LIMIT_MAX` e ripeti richieste. Atteso: `Troppe richieste, riprova tra poco.`
+- Response non JSON o shape inattesa: modifica temporaneamente una response dev. Atteso: `Risposta server non valida.`
+
+In development il client logga in console `api.response`, `api.error_payload` e `api.normalize_error` senza includere request body o segreti.
+
 ## Stato production-readiness
 
 Pronto per una prima produzione interna:
