@@ -10,9 +10,10 @@ type Props = {
   onApprove: (draftId: string) => Promise<void>;
   onReject: (draftId: string) => Promise<void>;
   onRevision: (draftId: string) => Promise<void>;
+  onRegenerate: (draftId: string) => Promise<void>;
 };
 
-export function DraftCard({ draft, onSave, onApprove, onReject, onRevision }: Props) {
+export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRegenerate }: Props) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(draft.title);
   const [content, setContent] = useState(draft.content);
@@ -42,7 +43,7 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision }: Pr
             <h3 className="text-base font-semibold text-white">{draft.title}</h3>
           )}
           <p className="mt-1 text-xs text-slate-500">
-            {draft.agent?.name ?? "Agent"} / {draft.platform} / {formatDate(draft.createdAt)}
+            {draft.agent?.name ?? "Agent"} / {draft.platform} / v{draft.currentVersion} / {formatDate(draft.createdAt)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -83,6 +84,22 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision }: Pr
         </div>
       </div>
 
+      {(draft.versions ?? []).length > 1 ? (
+        <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/25 p-3">
+          <p className="text-xs font-semibold uppercase text-slate-500">Versioni precedenti</p>
+          <div className="mt-2 grid gap-2">
+            {(draft.versions ?? []).slice(1, 4).map((version) => (
+              <details key={version.id} className="rounded-lg border border-white/10 bg-slate-950/30 p-2">
+                <summary className="cursor-pointer text-xs text-slate-300">
+                  v{version.version} / {version.createdBy} / {formatDate(version.createdAt)}
+                </summary>
+                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-400">{version.content}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap justify-end gap-2">
         <button
           type="button"
@@ -103,6 +120,15 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision }: Pr
             Salva
           </button>
         ) : null}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void act(() => onRegenerate(draft.id))}
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-45"
+        >
+          <RotateCcw size={16} />
+          Rigenera
+        </button>
         <button
           type="button"
           disabled={busy}
