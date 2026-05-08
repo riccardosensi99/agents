@@ -8,6 +8,7 @@ export type ApiErrorShape = {
   message: string;
   status?: number | undefined;
   issues?: ApiIssue[] | undefined;
+  path?: string | undefined;
 };
 
 type BackendErrorPayload =
@@ -55,18 +56,27 @@ const fallbackMessageForCode = (code: string) => {
     return "Sessione scaduta, effettua di nuovo il login.";
   }
   if (code === "FORBIDDEN") {
-    return "Non hai i permessi per questa operazione.";
+    return "Operazione non consentita.";
   }
   if (code === "NOT_FOUND") {
     return "Elemento non trovato.";
   }
   if (code === "RATE_LIMITED") {
-    return "Hai fatto troppe richieste, riprova tra poco.";
+    return "Troppe richieste, riprova tra poco.";
   }
   if (code === "NETWORK_ERROR") {
     return "Il backend non e raggiungibile.";
   }
-  return "Errore server. Riprova tra poco.";
+  if (code === "SERVER_ERROR") {
+    return "Errore interno server.";
+  }
+  if (code === "RESPONSE_PARSE_ERROR" || code === "RESPONSE_SHAPE_ERROR") {
+    return "Risposta server non valida.";
+  }
+  if (code === "CLIENT_ERROR") {
+    return "Errore inatteso nell'interfaccia.";
+  }
+  return "Errore API. Riprova tra poco.";
 };
 
 const humanizeIssueMessage = (message: string) => {
@@ -105,6 +115,7 @@ export class ApiError extends Error implements ApiErrorShape {
   public readonly code: string;
   public readonly status: number | undefined;
   public readonly issues: ApiIssue[] | undefined;
+  public readonly path: string | undefined;
 
   constructor(error: ApiErrorShape) {
     super(error.message);
@@ -112,10 +123,45 @@ export class ApiError extends Error implements ApiErrorShape {
     this.code = error.code;
     this.status = error.status;
     this.issues = error.issues;
+    this.path = error.path;
   }
 }
 
-export function errorFromResponse(status: number, payload: BackendErrorPayload | null) {
+export function debugApi(label: string, data: unknown) {
+  if (import.meta.env.DEV) {
+    console.debug(`[api] ${label}`, data);
+  }
+}
+
+export function networkErrorFromFetch(error: unknown, path: string) {
+  const isAbort = error instanceof DOMException && error.name === "AbortError";
+  const message = isAbort ? "Richiesta scaduta: il backend non ha risposto in tempo." : fallbackMessageForCode("NETWORK_ERROR");
+
+  return new ApiError({
+    code: "NETWORK_ERROR",
+    message,
+    path
+  });
+}
+
+export function responseParseError(status: number, path: string) {
+  return new ApiError({
+    code: "RESPONSE_PARSE_ERROR",
+    status,
+    path,
+    message: fallbackMessageForCode("RESPONSE_PARSE_ERROR")
+  });
+}
+
+export function responseShapeError(path: string) {
+  return new ApiError({
+    code: "RESPONSE_SHAPE_ERROR",
+    path,
+    message: fallbackMessageForCode("RESPONSE_SHAPE_ERROR")
+  });
+}
+
+export function errorFromResponse(status: number, payload: BackendErrorPayload | null, path?: string) {
   if (payload && typeof payload.error === "object" && payload.error !== null) {
     const code = payload.error.code ?? statusCodeToCode(status);
     const issues = payload.error.issues?.map((issue) => ({
@@ -126,6 +172,7 @@ export function errorFromResponse(status: number, payload: BackendErrorPayload |
     return new ApiError({
       code,
       status,
+      path,
       message: payload.error.message ?? fallbackMessageForCode(code),
       issues
     });
@@ -138,39 +185,58 @@ export function errorFromResponse(status: number, payload: BackendErrorPayload |
   return new ApiError({
     code,
     status,
+    path,
     message: legacyMessage ?? fallbackMessageForCode(code),
     issues
   });
 }
 
 export function normalizeApiError(error: unknown): ApiErrorShape {
+  let normalized: ApiErrorShape;
+
   if (error instanceof ApiError) {
-    return {
+    normalized = {
       code: error.code,
       status: error.status,
       message: error.message,
-      issues: error.issues
+      issues: error.issues,
+      path: error.path
     };
+    debugApi("normalize_error", normalized);
+    return normalized;
   }
 
   if (error instanceof TypeError) {
-    return {
-      code: "NETWORK_ERROR",
-      message: fallbackMessageForCode("NETWORK_ERROR")
+    normalized = {
+      code: "CLIENT_ERROR",
+      message: fallbackMessageForCode("CLIENT_ERROR")
     };
+    debugApi("normalize_error", {
+      ...normalized,
+      rawName: error.name,
+      rawMessage: error.message
+    });
+    return normalized;
   }
 
   if (error instanceof Error) {
-    return {
+    normalized = {
       code: "UNKNOWN_ERROR",
       message: error.message || fallbackMessageForCode("UNKNOWN_ERROR")
     };
+    debugApi("normalize_error", {
+      ...normalized,
+      rawName: error.name
+    });
+    return normalized;
   }
 
-  return {
+  normalized = {
     code: "UNKNOWN_ERROR",
     message: fallbackMessageForCode("UNKNOWN_ERROR")
   };
+  debugApi("normalize_error", normalized);
+  return normalized;
 }
 
 export function getFieldError(error: unknown, fieldName: string) {

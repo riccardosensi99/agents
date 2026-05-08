@@ -40,6 +40,8 @@ const icons: Record<ToastVariant, typeof CheckCircle2> = {
   info: Info
 };
 
+const createToastId = () => globalThis.crypto?.randomUUID?.() ?? `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -49,7 +51,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const push = useCallback(
     (toast: ToastInput) => {
-      const id = crypto.randomUUID();
+      const id = createToastId();
       setToasts((current) => [...current, { ...toast, id }].slice(-4));
       window.setTimeout(() => remove(id), toast.variant === "error" ? 6500 : 4200);
     },
