@@ -40,18 +40,29 @@ export async function regenerateDraft(params: {
     "",
     params.comment ? `User feedback: ${params.comment}` : "User feedback: improve specificity and brand fit."
   ].join("\n");
+  const agentContext = {
+    ...(draft.taskId ? { taskId: draft.taskId } : {}),
+    agentSlug: draft.agent.slug,
+    draftId: draft.id
+  };
+  const supervisorContext = {
+    ...(draft.taskId ? { taskId: draft.taskId } : {}),
+    agentSlug: "overseer",
+    draftId: draft.id
+  };
 
   const generated =
     draft.agent.slug === "instaspark"
-      ? await runInstagramAgent(revisionPrompt, brandProfile)
-      : await runLinkedInAgent(revisionPrompt, brandProfile);
+      ? await runInstagramAgent(revisionPrompt, brandProfile, agentContext)
+      : await runLinkedInAgent(revisionPrompt, brandProfile, agentContext);
 
   const review = await reviewDraftWithSupervisor({
     title: generated.title,
     content: generated.content,
     platform: draft.platform,
     brandProfile,
-    userFeedback: params.comment
+    userFeedback: params.comment,
+    context: supervisorContext
   });
 
   const nextVersion = await createDraftVersion({
@@ -141,6 +152,21 @@ export async function regenerateDraft(params: {
       recommendedAction: review.recommendedAction
     }
   });
+
+  if (review.recommendedAction === "revise" || review.recommendedAction === "reject") {
+    await createNotification({
+      type: `supervisor.${review.recommendedAction}`,
+      title: "Supervisor richiede attenzione",
+      message: `Overseer consiglia: ${review.recommendedAction}.`,
+      meta: {
+        draftId: draft.id,
+        taskId: draft.taskId,
+        version: nextVersion,
+        riskLevel: review.riskLevel,
+        qualityScore: review.qualityScore
+      }
+    });
+  }
 
   return {
     draft: updated,

@@ -198,5 +198,13 @@ export const api = {
   async getNotifications(token: string) {
     const response = await request<ApiEnvelope<Notification[]>>("/system/notifications", { token });
     return response.data;
+  },
+
+  async markAllNotificationsRead(token: string) {
+    const response = await request<ApiEnvelope<Notification[]>>("/system/notifications/read-all", {
+      token,
+      method: "POST"
+    });
+    return response.data;
   }
 };

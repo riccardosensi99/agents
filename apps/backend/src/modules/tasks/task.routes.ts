@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../lib/asyncHandler";
 import { AppError, notFound } from "../../lib/errors";
 import { validateParams } from "../../middleware/validate";
+import { taskRunRateLimit } from "../../middleware/rateLimit";
 import { cancelTask, retryTask, runTask } from "../../services/tasks/taskRunner";
 import { taskParamsSchema } from "./task.schemas";
 
@@ -56,6 +57,7 @@ taskRoutes.get(
 
 taskRoutes.post(
   "/:id/run",
+  taskRunRateLimit,
   validateParams(taskParamsSchema),
   asyncHandler(async (req, res) => {
     const id = paramId(req.params.id);
@@ -66,6 +68,7 @@ taskRoutes.post(
 
 taskRoutes.post(
   "/:id/retry",
+  taskRunRateLimit,
   validateParams(taskParamsSchema),
   asyncHandler(async (req, res) => {
     const id = paramId(req.params.id);

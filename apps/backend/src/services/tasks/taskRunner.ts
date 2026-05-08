@@ -1,6 +1,7 @@
 import type { Platform } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { AppError, notFound } from "../../lib/errors";
+import { safeErrorMessage } from "../../lib/redact";
 import { getDefaultBrandProfile } from "../brand/brandProfileService";
 import { createInitialDraftVersion } from "../drafts/draftVersionService";
 import { createNotification } from "../notifications/notificationService";
@@ -43,6 +44,8 @@ function platformForAgent(agentSlug: string): Platform {
   return "internal";
 }
 
+const runnableStatuses = ["pending", "failed", "rejected", "revision_requested"] as const;
+
 export async function runTask(taskId: string) {
   const task = await db.task.findUnique({
     where: { id: taskId },
@@ -57,21 +60,35 @@ export async function runTask(taskId: string) {
     throw new AppError(409, "Task is already running");
   }
 
+  if (!runnableStatuses.includes(task.status)) {
+    throw new AppError(409, `Task cannot be run from status ${task.status}`);
+  }
+
   const nextRetryCount = task.status === "failed" ? task.retryCount + 1 : task.retryCount;
+  const startedAt = new Date();
+  const platform = task.platform === "internal" ? platformForAgent(task.agent.slug) : task.platform;
+  const locked = await db.task.updateMany({
+    where: {
+      id: task.id,
+      status: { in: runnableStatuses }
+    },
+    data: {
+      status: "running",
+      platform,
+      startedAt,
+      completedAt: null,
+      failedAt: null,
+      error: null,
+      errorMessage: null,
+      retryCount: nextRetryCount
+    }
+  });
+
+  if (locked.count !== 1) {
+    throw new AppError(409, "Task was already picked up by another runner");
+  }
 
   await db.$transaction([
-    db.task.update({
-      where: { id: task.id },
-      data: {
-        status: "running",
-        platform: task.platform === "internal" ? platformForAgent(task.agent.slug) : task.platform,
-        startedAt: new Date(),
-        failedAt: null,
-        error: null,
-        errorMessage: null,
-        retryCount: nextRetryCount
-      }
-    }),
     db.agent.update({
       where: { id: task.agentId },
       data: { status: "working" }
@@ -88,18 +105,29 @@ export async function runTask(taskId: string) {
         taskId: task.id,
         type: "task.started",
         message: "Task execution started",
-        meta: { agentSlug: task.agent.slug }
+        meta: { agentSlug: task.agent.slug, retryCount: nextRetryCount }
       }
     })
   ]);
 
+  console.info("task.run.started", {
+    taskId: task.id,
+    agentSlug: task.agent.slug,
+    platform,
+    retryCount: nextRetryCount
+  });
+
   try {
     const brandProfile = await getDefaultBrandProfile();
+    const aiContext = {
+      taskId: task.id,
+      agentSlug: task.agent.slug
+    };
     const generated =
       task.agent.slug === "instaspark"
-        ? await runInstagramAgent(task.prompt, brandProfile)
+        ? await runInstagramAgent(task.prompt, brandProfile, aiContext)
         : task.agent.slug === "linkforge"
-          ? await runLinkedInAgent(task.prompt, brandProfile)
+          ? await runLinkedInAgent(task.prompt, brandProfile, aiContext)
           : await runGenericAgent(task.prompt);
 
     const supervisorReview =
@@ -109,7 +137,8 @@ export async function runTask(taskId: string) {
             title: generated.title,
             content: generated.content,
             platform: generated.platform,
-            brandProfile
+            brandProfile,
+            context: aiContext
           });
 
     const draft = await db.draft.create({
@@ -176,6 +205,14 @@ export async function runTask(taskId: string) {
       }
     });
 
+    console.info("task.run.completed", {
+      taskId: task.id,
+      agentSlug: task.agent.slug,
+      status: nextTaskStatus,
+      draftId: draft.id,
+      durationMs: Date.now() - startedAt.getTime()
+    });
+
     if (generated.platform !== "internal") {
       await createNotification({
         type: "draft.waiting_approval",
@@ -209,7 +246,7 @@ export async function runTask(taskId: string) {
       supervisorReview
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown task error";
+    const message = safeErrorMessage(error, "Unknown task error");
 
     await db.$transaction([
       db.task.update({
@@ -250,6 +287,13 @@ export async function runTask(taskId: string) {
       meta: { taskId: task.id, agentId: task.agentId }
     });
 
+    console.warn("task.run.failed", {
+      taskId: task.id,
+      agentSlug: task.agent.slug,
+      durationMs: Date.now() - startedAt.getTime(),
+      error: message
+    });
+
     throw error;
   }
 }
@@ -261,8 +305,8 @@ export async function retryTask(taskId: string) {
     throw notFound("Task");
   }
 
-  if (task.status === "running") {
-    throw new AppError(409, "Cannot retry a running task");
+  if (task.status !== "failed") {
+    throw new AppError(409, "Only failed tasks can be retried");
   }
 
   await db.task.update({
@@ -286,18 +330,21 @@ export async function cancelTask(taskId: string) {
     throw notFound("Task");
   }
 
-  if (task.status === "running") {
-    throw new AppError(409, "Cannot cancel a running task");
+  if (task.status !== "pending") {
+    throw new AppError(409, "Only pending tasks can be cancelled");
   }
 
   const updated = await db.task.update({
     where: { id: task.id },
     data: {
       status: "rejected",
-      completedAt: new Date()
+      completedAt: new Date(),
+      error: null,
+      errorMessage: null
     }
   });
 
   await addTaskEvent(task.id, "task.cancelled", "Task cancelled manually");
+  console.info("task.cancelled", { taskId: task.id });
   return updated;
 }

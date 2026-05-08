@@ -8,6 +8,7 @@ type Props = {
   brandProfile?: BrandProfile | null;
   notifications: Notification[];
   onSaveBrandProfile: (body: Partial<BrandProfile>) => Promise<void>;
+  onMarkNotificationsRead: () => Promise<void>;
 };
 
 const fields: Array<{ key: keyof BrandProfile; label: string; rows: number }> = [
@@ -24,9 +25,10 @@ const fields: Array<{ key: keyof BrandProfile; label: string; rows: number }> = 
   { key: "bannedWords", label: "Parole/frasi da evitare", rows: 3 }
 ];
 
-export function SettingsPage({ status, brandProfile, notifications, onSaveBrandProfile }: Props) {
+export function SettingsPage({ status, brandProfile, notifications, onSaveBrandProfile, onMarkNotificationsRead }: Props) {
   const [form, setForm] = useState<Partial<BrandProfile>>({});
   const [saving, setSaving] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
 
   useEffect(() => {
     if (brandProfile) {
@@ -40,6 +42,15 @@ export function SettingsPage({ status, brandProfile, notifications, onSaveBrandP
       await onSaveBrandProfile(form);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function markRead() {
+    setMarkingRead(true);
+    try {
+      await onMarkNotificationsRead();
+    } finally {
+      setMarkingRead(false);
     }
   }
 
@@ -100,11 +111,26 @@ export function SettingsPage({ status, brandProfile, notifications, onSaveBrandP
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-xl">
-          <h3 className="text-base font-semibold text-white">Notifiche recenti</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-white">Notifiche recenti</h3>
+            <button
+              type="button"
+              disabled={markingRead || notifications.length === 0}
+              onClick={() => void markRead()}
+              className="inline-flex h-9 items-center rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-45"
+            >
+              Segna lette
+            </button>
+          </div>
           <div className="mt-4 space-y-3">
             {notifications.slice(0, 8).map((notification) => (
               <div key={notification.id} className="rounded-xl border border-white/10 bg-slate-950/30 p-3">
-                <p className="text-sm font-medium text-slate-100">{notification.title}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-100">{notification.title}</p>
+                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase text-slate-500">
+                    {notification.status}
+                  </span>
+                </div>
                 <p className="mt-1 text-xs leading-5 text-slate-400">{notification.message}</p>
                 <p className="mt-2 text-xs text-slate-600">{formatDate(notification.createdAt)}</p>
               </div>

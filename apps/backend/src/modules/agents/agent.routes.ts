@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { asyncHandler } from "../../lib/asyncHandler";
 import { AppError, notFound } from "../../lib/errors";
 import { validateBody, validateParams } from "../../middleware/validate";
+import { taskMutationRateLimit } from "../../middleware/rateLimit";
 import {
   agentParamsSchema,
   createAgentSchema,
@@ -149,6 +150,7 @@ agentRoutes.patch(
 
 agentRoutes.post(
   "/:id/tasks",
+  taskMutationRateLimit,
   validateParams(agentParamsSchema),
   validateBody(createAgentTaskSchema),
   asyncHandler(async (req, res) => {

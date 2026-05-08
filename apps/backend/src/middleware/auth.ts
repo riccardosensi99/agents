@@ -18,20 +18,29 @@ export function signToken(payload: TokenPayload) {
 }
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
-  const header = req.header("authorization");
+  try {
+    const header = req.header("authorization");
 
-  if (!header?.startsWith("Bearer ")) {
-    throw new AppError(401, "Missing bearer token");
+    if (!header?.startsWith("Bearer ")) {
+      throw new AppError(401, "Missing bearer token");
+    }
+
+    const token = header.slice("Bearer ".length);
+    const decoded = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+
+    req.user = {
+      id: decoded.sub,
+      email: decoded.email,
+      role: decoded.role
+    };
+
+    next();
+  } catch (error) {
+    if (error instanceof AppError) {
+      next(error);
+      return;
+    }
+
+    next(new AppError(401, "Invalid bearer token"));
   }
-
-  const token = header.slice("Bearer ".length);
-  const decoded = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
-
-  req.user = {
-    id: decoded.sub,
-    email: decoded.email,
-    role: decoded.role
-  };
-
-  next();
 }

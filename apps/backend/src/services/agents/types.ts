@@ -13,3 +13,9 @@ export type SupervisorReview = {
   feedback: string;
   recommendedAction: RecommendedAction;
 };
+
+export type AgentRunContext = {
+  taskId?: string;
+  agentSlug?: string;
+  draftId?: string;
+};
