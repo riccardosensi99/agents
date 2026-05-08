@@ -10,7 +10,7 @@ import { DraftsPage } from "./pages/DraftsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TasksPage } from "./pages/TasksPage";
-import type { Agent, Draft, SystemStatus, Task, User } from "./types/domain";
+import type { Agent, BrandProfile, Draft, Notification, Platform, SystemStatus, Task, TaskPriority, User } from "./types/domain";
 
 const AgentRoomPage = lazy(() =>
   import("./pages/AgentRoomPage").then((module) => ({ default: module.AgentRoomPage }))
@@ -73,6 +73,8 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,16 +90,18 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [nextAgents, nextTasks, nextDrafts, nextSystem] = await Promise.all([
+      const [nextAgents, nextTasks, nextDrafts, nextSystem, nextNotifications] = await Promise.all([
         api.getAgents(token),
         api.getTasks(token),
         api.getDrafts(token),
-        api.getSystemStatus(token)
+        api.getSystemStatus(token),
+        api.getNotifications(token)
       ]);
       setAgents(nextAgents);
       setTasks(nextTasks);
       setDrafts(nextDrafts);
       setSystemStatus(nextSystem);
+      setNotifications(nextNotifications);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore caricamento dati");
     } finally {
@@ -136,6 +140,17 @@ export default function App() {
   }, [loadSelectedAgent]);
 
   useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    void Promise.all([api.getBrandProfile(token), api.getNotifications(token)]).then(([profile, nextNotifications]) => {
+      setBrandProfile(profile);
+      setNotifications(nextNotifications);
+    });
+  }, [token]);
+
+  useEffect(() => {
     const onPopState = () => {
       setActiveView(viewFromPath(window.location.pathname));
     };
@@ -166,11 +181,40 @@ export default function App() {
 
   const handlers = useMemo(
     () => ({
-      async createTask(agentId: string, body: { title: string; prompt: string; runNow: boolean }) {
+      async createTask(
+        agentId: string,
+        body: {
+          title: string;
+          prompt: string;
+          runNow: boolean;
+          platform?: Platform;
+          priority?: TaskPriority;
+          scheduledAt?: string | null;
+        }
+      ) {
         if (!token) {
           return;
         }
-        const task = await api.createTask(token, agentId, { title: body.title, prompt: body.prompt });
+        const taskBody: {
+          title: string;
+          prompt: string;
+          platform?: Platform;
+          priority?: TaskPriority;
+          scheduledAt?: string | null;
+        } = {
+          title: body.title,
+          prompt: body.prompt
+        };
+        if (body.platform) {
+          taskBody.platform = body.platform;
+        }
+        if (body.priority) {
+          taskBody.priority = body.priority;
+        }
+        if (body.scheduledAt !== undefined) {
+          taskBody.scheduledAt = body.scheduledAt;
+        }
+        const task = await api.createTask(token, agentId, taskBody);
         if (body.runNow) {
           await api.runTask(token, task.id);
         }
@@ -183,6 +227,22 @@ export default function App() {
           return;
         }
         await api.runTask(token, taskId);
+        await loadAll();
+        await loadSelectedAgent();
+      },
+      async retryTask(taskId: string) {
+        if (!token) {
+          return;
+        }
+        await api.retryTask(token, taskId);
+        await loadAll();
+        await loadSelectedAgent();
+      },
+      async cancelTask(taskId: string) {
+        if (!token) {
+          return;
+        }
+        await api.cancelTask(token, taskId);
         await loadAll();
         await loadSelectedAgent();
       },
@@ -218,6 +278,14 @@ export default function App() {
         await loadAll();
         await loadSelectedAgent();
       },
+      async regenerateDraft(draftId: string) {
+        if (!token) {
+          return;
+        }
+        await api.regenerateDraft(token, draftId, "Rigenera mantenendo il brand profile e rendendo il testo piu concreto");
+        await loadAll();
+        await loadSelectedAgent();
+      },
       async pauseAgent(agentId: string) {
         if (!token) {
           return;
@@ -233,6 +301,14 @@ export default function App() {
         await api.updateAgent(token, agentId, body);
         await loadAll();
         await loadSelectedAgent();
+      },
+      async saveBrandProfile(body: Partial<BrandProfile>) {
+        if (!token) {
+          return;
+        }
+        const profile = await api.updateBrandProfile(token, body);
+        setBrandProfile(profile);
+        await loadAll();
       }
     }),
     [loadAll, loadSelectedAgent, token]
@@ -299,7 +375,16 @@ export default function App() {
     }
 
     if (activeView === "tasks") {
-      return <TasksPage tasks={tasks} onRunTask={handlers.runTask} />;
+      return (
+        <TasksPage
+          agents={agents}
+          tasks={tasks}
+          onCreateTask={handlers.createTask}
+          onRunTask={handlers.runTask}
+          onRetryTask={handlers.retryTask}
+          onCancelTask={handlers.cancelTask}
+        />
+      );
     }
 
     if (activeView === "drafts") {
@@ -311,6 +396,7 @@ export default function App() {
           onApproveDraft={handlers.approveDraft}
           onRejectDraft={handlers.rejectDraft}
           onRevisionDraft={handlers.revisionDraft}
+          onRegenerateDraft={handlers.regenerateDraft}
         />
       );
     }
@@ -325,12 +411,20 @@ export default function App() {
           onApproveDraft={handlers.approveDraft}
           onRejectDraft={handlers.rejectDraft}
           onRevisionDraft={handlers.revisionDraft}
+          onRegenerateDraft={handlers.regenerateDraft}
         />
       );
     }
 
     if (activeView === "settings") {
-      return <SettingsPage status={systemStatus} />;
+      return (
+        <SettingsPage
+          status={systemStatus}
+          brandProfile={brandProfile}
+          notifications={notifications}
+          onSaveBrandProfile={handlers.saveBrandProfile}
+        />
+      );
     }
 
     return (
@@ -343,6 +437,7 @@ export default function App() {
         onApproveDraft={handlers.approveDraft}
         onRejectDraft={handlers.rejectDraft}
         onRevisionDraft={handlers.revisionDraft}
+        onRegenerateDraft={handlers.regenerateDraft}
       />
     );
   };

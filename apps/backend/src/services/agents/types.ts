@@ -4,6 +4,7 @@ export type GeneratedDraft = {
   title: string;
   content: string;
   platform: Platform;
+  metadata: Record<string, unknown>;
 };
 
 export type SupervisorReview = {

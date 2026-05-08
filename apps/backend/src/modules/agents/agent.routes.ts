@@ -161,11 +161,16 @@ agentRoutes.post(
       throw notFound("Agent");
     }
 
-    const task = await prisma.task.create({
+    const task = await (prisma as any).task.create({
       data: {
         agentId: agent.id,
         title: req.body.title,
-        prompt: req.body.prompt
+        prompt: req.body.prompt,
+        platform:
+          req.body.platform ??
+          (agent.slug === "instaspark" ? "instagram" : agent.slug === "linkforge" ? "linkedin" : "internal"),
+        priority: req.body.priority,
+        scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : null
       }
     });
 

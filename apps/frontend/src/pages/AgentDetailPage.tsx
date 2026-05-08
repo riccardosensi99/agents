@@ -3,7 +3,7 @@ import { useState } from "react";
 import { CreatureAvatar } from "../components/CreatureAvatar";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskComposer } from "../components/TaskComposer";
-import type { Agent, Task } from "../types/domain";
+import type { Agent, Platform, Task, TaskPriority } from "../types/domain";
 import { formatDate } from "../utils/format";
 
 type Props = {
@@ -11,7 +11,14 @@ type Props = {
   onBack: () => void;
   onPause: (agentId: string) => Promise<void>;
   onUpdate: (agentId: string, body: Partial<Agent>) => Promise<void>;
-  onCreateTask: (body: { title: string; prompt: string; runNow: boolean }) => Promise<Task | void>;
+  onCreateTask: (body: {
+    title: string;
+    prompt: string;
+    runNow: boolean;
+    platform?: Platform;
+    priority?: TaskPriority;
+    scheduledAt?: string | null;
+  }) => Promise<Task | void>;
 };
 
 export function AgentDetailPage({ agent, onBack, onPause, onUpdate, onCreateTask }: Props) {

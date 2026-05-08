@@ -1,17 +1,25 @@
+import { buildLinkedInPrompt } from "../../prompts/linkedinPrompt";
+import type { BrandProfile } from "../../types/brand";
+import { generatedDraftSchema } from "../../validators/aiOutputs";
 import { aiClient } from "../ai/aiClient";
 import type { GeneratedDraft } from "./types";
 
-export async function runLinkedInAgent(prompt: string): Promise<GeneratedDraft> {
-  const content = await aiClient.generateText({
-    system:
-      "You are LinkForge, a LinkedIn growth agent for a freelance full-stack developer. Write professional draft content only. Never publish or imply automatic publication.",
-    prompt,
-    temperature: 0.55
-  });
+export async function runLinkedInAgent(prompt: string, brandProfile: BrandProfile | null): Promise<GeneratedDraft> {
+  const builtPrompt = buildLinkedInPrompt({ taskPrompt: prompt, brandProfile });
+  const generated = await aiClient.generateJson(
+    {
+      ...builtPrompt,
+      operation: "linkedin.generate_draft",
+      responseFormat: "json",
+      temperature: 0.55
+    },
+    generatedDraftSchema
+  );
 
   return {
-    title: "LinkedIn content draft",
-    content,
-    platform: "linkedin"
+    title: generated.title,
+    content: generated.content,
+    platform: "linkedin",
+    metadata: generated.metadata ?? {}
   };
 }

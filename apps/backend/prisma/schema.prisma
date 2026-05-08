@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -20,7 +21,15 @@ enum TaskStatus {
   completed
   waiting_approval
   rejected
+  revision_requested
   failed
+}
+
+enum TaskPriority {
+  low
+  normal
+  high
+  urgent
 }
 
 enum DraftStatus {
@@ -63,6 +72,7 @@ model User {
   passwordHash String
   role         String     @default("owner")
   approvals    Approval[]
+  brandProfile BrandProfile?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }
@@ -84,20 +94,32 @@ model Agent {
 }
 
 model Task {
-  id        String     @id @default(uuid())
-  agentId   String
-  title     String
-  prompt    String
-  status    TaskStatus @default(pending)
-  result    String?
-  error     String?
-  agent     Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  drafts    Draft[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String       @id @default(uuid())
+  agentId      String
+  title        String
+  prompt       String
+  platform     Platform     @default(internal)
+  status       TaskStatus   @default(pending)
+  priority     TaskPriority @default(normal)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  failedAt     DateTime?
+  retryCount   Int          @default(0)
+  result       String?
+  resultJson   Json?
+  error        String?
+  errorMessage String?
+  agent        Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  drafts       Draft[]
+  events       TaskEvent[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([agentId])
   @@index([status])
+  @@index([platform])
+  @@index([scheduledAt])
 }
 
 model Draft {
@@ -112,15 +134,49 @@ model Draft {
   riskLevel          RiskLevel?
   supervisorFeedback String?
   recommendedAction  RecommendedAction?
+  currentVersion      Int                @default(1)
   agent              Agent              @relation(fields: [agentId], references: [id], onDelete: Cascade)
   task               Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
   approvals          Approval[]
+  versions           DraftVersion[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
   @@index([agentId])
   @@index([taskId])
   @@index([status])
+}
+
+model DraftVersion {
+  id                 String             @id @default(uuid())
+  draftId            String
+  version            Int
+  title              String
+  content            String
+  supervisorScore    Int?
+  riskLevel          RiskLevel?
+  supervisorFeedback String?
+  recommendedAction  RecommendedAction?
+  userFeedback       String?
+  createdBy          String             @default("system")
+  draft              Draft              @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  createdAt          DateTime           @default(now())
+
+  @@unique([draftId, version])
+  @@index([draftId])
+}
+
+model TaskEvent {
+  id        String   @id @default(uuid())
+  taskId    String
+  type      String
+  message   String
+  meta      Json?
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([type])
 }
 
 model AgentLog {
@@ -159,5 +215,38 @@ model SystemEvent {
   meta      Json?
   createdAt DateTime @default(now())
 
+  @@index([type])
+}
+
+model BrandProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  ownerName        String   @default("")
+  bio              String   @default("")
+  services         String   @default("")
+  technicalStack   String   @default("")
+  toneOfVoice      String   @default("")
+  targetClients    String   @default("")
+  businessGoals    String   @default("")
+  topicsToPush     String   @default("")
+  topicsToAvoid    String   @default("")
+  goodPostExamples String   @default("")
+  bannedWords      String   @default("")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  type      String
+  title     String
+  message   String
+  status    String    @default("unread")
+  meta      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([status])
   @@index([type])
 }

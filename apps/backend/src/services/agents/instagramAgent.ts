@@ -1,17 +1,25 @@
+import { buildInstagramPrompt } from "../../prompts/instagramPrompt";
+import type { BrandProfile } from "../../types/brand";
+import { generatedDraftSchema } from "../../validators/aiOutputs";
 import { aiClient } from "../ai/aiClient";
 import type { GeneratedDraft } from "./types";
 
-export async function runInstagramAgent(prompt: string): Promise<GeneratedDraft> {
-  const content = await aiClient.generateText({
-    system:
-      "You are InstaSpark, an Instagram content agent for a freelance full-stack developer. Generate draft ideas and captions only. Never publish or imply automatic publication.",
-    prompt,
-    temperature: 0.7
-  });
+export async function runInstagramAgent(prompt: string, brandProfile: BrandProfile | null): Promise<GeneratedDraft> {
+  const builtPrompt = buildInstagramPrompt({ taskPrompt: prompt, brandProfile });
+  const generated = await aiClient.generateJson(
+    {
+      ...builtPrompt,
+      operation: "instagram.generate_draft",
+      responseFormat: "json",
+      temperature: 0.7
+    },
+    generatedDraftSchema
+  );
 
   return {
-    title: "Instagram content draft",
-    content,
-    platform: "instagram"
+    title: generated.title,
+    content: generated.content,
+    platform: "instagram",
+    metadata: generated.metadata ?? {}
   };
 }

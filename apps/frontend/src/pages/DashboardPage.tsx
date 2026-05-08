@@ -12,6 +12,7 @@ type Props = {
   onApproveDraft: (draftId: string) => Promise<void>;
   onRejectDraft: (draftId: string) => Promise<void>;
   onRevisionDraft: (draftId: string) => Promise<void>;
+  onRegenerateDraft: (draftId: string) => Promise<void>;
 };
 
 export function DashboardPage({
@@ -22,7 +23,8 @@ export function DashboardPage({
   onSaveDraft,
   onApproveDraft,
   onRejectDraft,
-  onRevisionDraft
+  onRevisionDraft,
+  onRegenerateDraft
 }: Props) {
   const approvals = drafts.filter((draft) => draft.status === "waiting_approval").slice(0, 3);
 
@@ -64,6 +66,7 @@ export function DashboardPage({
                 onApprove={onApproveDraft}
                 onReject={onRejectDraft}
                 onRevision={onRevisionDraft}
+                onRegenerate={onRegenerateDraft}
               />
             ))
           ) : (

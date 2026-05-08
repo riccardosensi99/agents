@@ -10,7 +10,7 @@ export function serializeAgent(agent: AgentWithActivity) {
   const completedTasks = agent.tasks.filter((task) => task.status === "completed").length;
   const failedTasks = agent.tasks.filter((task) => task.status === "failed").length;
   const currentTask =
-    agent.tasks.find((task) => ["pending", "running", "waiting_approval"].includes(task.status)) ??
+    agent.tasks.find((task) => ["pending", "running", "waiting_approval", "revision_requested"].includes(task.status)) ??
     null;
   const lastLog = agent.logs[0] ?? null;
 

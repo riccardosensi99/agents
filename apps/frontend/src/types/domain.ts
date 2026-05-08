@@ -5,7 +5,9 @@ export type TaskStatus =
   | "completed"
   | "waiting_approval"
   | "rejected"
+  | "revision_requested"
   | "failed";
+export type TaskPriority = "low" | "normal" | "high" | "urgent";
 export type DraftStatus =
   | "draft"
   | "waiting_approval"
@@ -32,18 +34,52 @@ export type AgentLog = {
   createdAt: string;
 };
 
+export type TaskEvent = {
+  id: string;
+  taskId: string;
+  type: string;
+  message: string;
+  meta?: unknown;
+  createdAt: string;
+};
+
 export type Task = {
   id: string;
   agentId: string;
   title: string;
   prompt: string;
+  platform: Platform;
   status: TaskStatus;
+  priority: TaskPriority;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  failedAt?: string | null;
+  retryCount: number;
   result?: string | null;
+  resultJson?: unknown;
   error?: string | null;
+  errorMessage?: string | null;
   createdAt: string;
   updatedAt: string;
   agent?: Agent;
   drafts?: Draft[];
+  events?: TaskEvent[];
+};
+
+export type DraftVersion = {
+  id: string;
+  draftId: string;
+  version: number;
+  title: string;
+  content: string;
+  supervisorScore?: number | null;
+  riskLevel?: RiskLevel | null;
+  supervisorFeedback?: string | null;
+  recommendedAction?: RecommendedAction | null;
+  userFeedback?: string | null;
+  createdBy: string;
+  createdAt: string;
 };
 
 export type Draft = {
@@ -58,10 +94,12 @@ export type Draft = {
   riskLevel?: RiskLevel | null;
   supervisorFeedback?: string | null;
   recommendedAction?: RecommendedAction | null;
+  currentVersion: number;
   createdAt: string;
   updatedAt: string;
   agent?: Agent;
   task?: Task | null;
+  versions?: DraftVersion[];
 };
 
 export type Agent = {
@@ -98,8 +136,10 @@ export type SystemStatus = {
     agents: number;
     pendingTasks: number;
     runningTasks: number;
+    failedTasks: number;
     approvalDrafts: number;
   };
+  unreadNotifications: number;
   recentEvents: Array<{
     id: string;
     level: string;
@@ -107,4 +147,33 @@ export type SystemStatus = {
     message: string;
     createdAt: string;
   }>;
+};
+
+export type BrandProfile = {
+  id: string;
+  userId: string;
+  ownerName: string;
+  bio: string;
+  services: string;
+  technicalStack: string;
+  toneOfVoice: string;
+  targetClients: string;
+  businessGoals: string;
+  topicsToPush: string;
+  topicsToAvoid: string;
+  goodPostExamples: string;
+  bannedWords: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Notification = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  status: string;
+  meta?: unknown;
+  readAt?: string | null;
+  createdAt: string;
 };

@@ -1,4 +1,4 @@
-import type { Agent, Draft, SystemStatus, Task, User } from "../types/domain";
+import type { Agent, BrandProfile, Draft, Notification, Platform, SystemStatus, Task, TaskPriority, User } from "../types/domain";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
@@ -13,7 +13,7 @@ type AuthEnvelope = {
 
 type RequestOptions = {
   token?: string;
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "PUT";
   body?: unknown;
 };
 
@@ -90,7 +90,11 @@ export const api = {
     return response.data;
   },
 
-  async createTask(token: string, agentId: string, body: { title: string; prompt: string }) {
+  async createTask(
+    token: string,
+    agentId: string,
+    body: { title: string; prompt: string; platform?: Platform; priority?: TaskPriority; scheduledAt?: string | null }
+  ) {
     const response = await request<ApiEnvelope<Task>>(`/agents/${agentId}/tasks`, {
       token,
       method: "POST",
@@ -106,6 +110,22 @@ export const api = {
 
   async runTask(token: string, taskId: string) {
     const response = await request<ApiEnvelope<{ task: Task; draft: Draft }>>(`/tasks/${taskId}/run`, {
+      token,
+      method: "POST"
+    });
+    return response.data;
+  },
+
+  async retryTask(token: string, taskId: string) {
+    const response = await request<ApiEnvelope<{ task: Task; draft: Draft }>>(`/tasks/${taskId}/retry`, {
+      token,
+      method: "POST"
+    });
+    return response.data;
+  },
+
+  async cancelTask(token: string, taskId: string) {
+    const response = await request<ApiEnvelope<Task>>(`/tasks/${taskId}/cancel`, {
       token,
       method: "POST"
     });
@@ -144,11 +164,39 @@ export const api = {
   },
 
   async requestRevision(token: string, draftId: string, comment?: string) {
-    const response = await request<ApiEnvelope<Draft>>(`/drafts/${draftId}/request-revision`, {
+    const response = await request<ApiEnvelope<{ draft: Draft }>>(`/drafts/${draftId}/request-revision`, {
       token,
       method: "POST",
       body: { comment }
     });
+    return response.data.draft;
+  },
+
+  async regenerateDraft(token: string, draftId: string, comment?: string) {
+    const response = await request<ApiEnvelope<{ draft: Draft }>>(`/drafts/${draftId}/regenerate`, {
+      token,
+      method: "POST",
+      body: { comment }
+    });
+    return response.data.draft;
+  },
+
+  async getBrandProfile(token: string) {
+    const response = await request<ApiEnvelope<BrandProfile>>("/settings/brand-profile", { token });
+    return response.data;
+  },
+
+  async updateBrandProfile(token: string, body: Partial<BrandProfile>) {
+    const response = await request<ApiEnvelope<BrandProfile>>("/settings/brand-profile", {
+      token,
+      method: "PUT",
+      body
+    });
+    return response.data;
+  },
+
+  async getNotifications(token: string) {
+    const response = await request<ApiEnvelope<Notification[]>>("/system/notifications", { token });
     return response.data;
   }
 };

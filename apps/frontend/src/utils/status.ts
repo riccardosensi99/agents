@@ -13,6 +13,7 @@ export const taskStatusLabel: Record<TaskStatus, string> = {
   completed: "Completato",
   waiting_approval: "Da approvare",
   rejected: "Rifiutato",
+  revision_requested: "Revisione richiesta",
   failed: "Fallito"
 };
 
