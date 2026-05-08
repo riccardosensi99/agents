@@ -198,11 +198,11 @@ export function randomPointInZone(zoneValue: RoomZone, padding = 28): RoomPoint 
 
 export function stationPointForAgent(slug: string, zones: RoomZones): RoomPoint {
   if (slug === "instaspark") {
-    return randomPointInZone(zones.socialArea, 30);
+    return randomPointInZone(zones.socialArea, 22);
   }
 
   if (slug === "linkforge") {
-    return randomPointInZone(zones.devStation, 30);
+    return randomPointInZone(zones.devStation, 24);
   }
 
   if (slug === "overseer") {

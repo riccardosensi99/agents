@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Agent, Draft, Task } from "../types/domain";
-import { randomPointInZone, stationPointForAgent, zoneCenter, type RoomZones } from "./roomConfig";
+import { randomPointInZone, stationPointForAgent, type RoomZones } from "./roomConfig";
 import type { RoomAgentIntent, RoomAgentMode, RoomPoint } from "./types";
 
 export function getAgentIntent(agent: Agent, tasks: Task[], drafts: Draft[]): RoomAgentIntent {
@@ -69,26 +69,51 @@ export function selectTarget(params: {
   }
 
   if (params.intent === "supervise") {
-    const socialAgent = params.otherAgents.find((agent) => agent.slug !== "overseer");
-    if (socialAgent) {
+    const inspectableAgents = params.otherAgents.filter((agent) => agent.slug !== "overseer");
+    const socialAgent = Phaser.Utils.Array.GetRandom(inspectableAgents);
+    if (socialAgent && Phaser.Math.Between(0, 100) < 68) {
       return {
         x: socialAgent.point.x + Phaser.Math.Between(-58, 58),
         y: socialAgent.point.y + Phaser.Math.Between(-38, 38)
       };
     }
 
-    return zoneCenter(params.zones.supervisorArea);
+    return Phaser.Math.Between(0, 100) < 72 ? randomPointInZone(params.zones.supervisorArea, 34) : randomPointInZone(params.zones.wander, 42);
   }
 
   if (params.agent.slug === "instaspark") {
-    return randomPointInZone(params.zones.socialArea, 36);
+    const roll = Phaser.Math.Between(0, 100);
+
+    if (roll < 62) {
+      return randomPointInZone(params.zones.socialArea, 22);
+    }
+
+    if (roll < 82) {
+      return randomPointInZone(params.zones.approvalBoard, 46);
+    }
+
+    return randomPointInZone(params.zones.wander, 38);
   }
 
   if (params.agent.slug === "linkforge") {
-    return randomPointInZone(params.zones.devStation, 36);
+    const roll = Phaser.Math.Between(0, 100);
+
+    if (roll < 70) {
+      return randomPointInZone(params.zones.devStation, 24);
+    }
+
+    if (roll < 84) {
+      return randomPointInZone(params.zones.serverRack, 30);
+    }
+
+    if (roll < 93) {
+      return null;
+    }
+
+    return randomPointInZone(params.zones.wander, 42);
   }
 
-  return randomPointInZone(params.zones.wander, 38);
+  return Phaser.Math.Between(0, 100) < 26 ? null : randomPointInZone(params.zones.wander, 38);
 }
 
 export function speechForAgent(agent: Agent, tasks: Task[], drafts: Draft[]) {
