@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Agent, Draft, Task } from "../types/domain";
-import { randomPointInZone, stationPointForAgent, zoneCenter, type RoomZones } from "./roomConfig";
+import { randomPointInZone, stationPointForAgent, type RoomZones } from "./roomConfig";
 import type { RoomAgentIntent, RoomAgentMode, RoomPoint } from "./types";
 
 export function getAgentIntent(agent: Agent, tasks: Task[], drafts: Draft[]): RoomAgentIntent {
@@ -85,7 +85,7 @@ export function selectTarget(params: {
     const roll = Phaser.Math.Between(0, 100);
 
     if (roll < 62) {
-      return randomPointInZone(params.zones.socialArea, 30);
+      return randomPointInZone(params.zones.socialArea, 22);
     }
 
     if (roll < 82) {
@@ -99,7 +99,7 @@ export function selectTarget(params: {
     const roll = Phaser.Math.Between(0, 100);
 
     if (roll < 70) {
-      return randomPointInZone(params.zones.devStation, 32);
+      return randomPointInZone(params.zones.devStation, 24);
     }
 
     if (roll < 84) {

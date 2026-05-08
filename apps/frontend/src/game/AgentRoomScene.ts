@@ -11,6 +11,19 @@ import {
 import { AgentSprite, registerAgentSpriteTextures } from "./AgentSprite";
 import type { AgentRoomSceneCallbacks, AgentRoomSnapshot, RoomAgentIntent, RoomPoint } from "./types";
 
+type AmbientPulse = {
+  object: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Ellipse;
+  baseX: number;
+  baseY: number;
+  baseAlpha: number;
+  amplitude: number;
+  speed: number;
+  phase: number;
+  driftX?: number;
+  driftY?: number;
+  scaleAmplitude?: number;
+};
+
 export class AgentRoomScene extends Phaser.Scene {
   private callbacks: AgentRoomSceneCallbacks;
   private snapshot: AgentRoomSnapshot = { agents: [], tasks: [], drafts: [] };
@@ -22,6 +35,7 @@ export class AgentRoomScene extends Phaser.Scene {
   private decorLayer?: Phaser.GameObjects.Graphics;
   private foregroundLayer?: Phaser.GameObjects.Graphics;
   private ambientObjects: Phaser.GameObjects.GameObject[] = [];
+  private ambientPulses: AmbientPulse[] = [];
   private notice: Phaser.GameObjects.Text | null = null;
   private taskStatus = new Map<string, string>();
   private draftStatus = new Map<string, string>();
@@ -58,8 +72,10 @@ export class AgentRoomScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number) {
-    this.cameras.main.scrollX = Math.sin(time / 3600) * 2;
-    this.cameras.main.scrollY = Math.cos(time / 4200) * 2;
+    this.cameras.main.scrollX = Math.sin(time / 3600) * 1.6 + Math.sin(time / 9800) * 0.8;
+    this.cameras.main.scrollY = Math.cos(time / 4200) * 1.4 + Math.sin(time / 7800) * 0.6;
+    this.cameras.main.zoom = 1 + Math.sin(time / 9200) * 0.0025;
+    this.updateAmbientLife(time);
 
     for (const agent of this.snapshot.agents) {
       const sprite = this.sprites.get(agent.id);
@@ -244,6 +260,7 @@ export class AgentRoomScene extends Phaser.Scene {
     this.drawTiledFloor();
     this.drawBackWallDetails();
     this.drawFurniture();
+    this.drawAmbientLifeDetails();
     this.drawForegroundDetails();
   }
 
@@ -356,6 +373,164 @@ export class AgentRoomScene extends Phaser.Scene {
     glow.fillStyle(0xfbbf24, 0.06);
     glow.fillEllipse(room.x + room.width * 0.5, room.y + room.height - 78, room.width * 0.64, 70);
     this.ambientObjects.push(glow);
+  }
+
+  private drawAmbientLifeDetails() {
+    const { objects } = this.layout;
+
+    this.addMonitorLife(objects.socialDesk, true);
+    this.addMonitorLife(objects.devDesk, true);
+    this.addMonitorLife(objects.supervisorDesk, false);
+    this.addServerLights();
+    this.addCoffeeSteam(objects.coffeeBar);
+    this.addApprovalSparkles(objects.approvalBoardObject);
+    this.addSoftFloorMotes();
+  }
+
+  private addMonitorLife(desk: RoomObject, doubleMonitor: boolean) {
+    const monitorWidth = doubleMonitor ? 58 : 78;
+    const firstMonitorX = desk.x + desk.width / 2 - (doubleMonitor ? 66 : 39);
+    const monitors = doubleMonitor ? [firstMonitorX, firstMonitorX + 74] : [desk.x + 28, desk.x + desk.width - 106];
+
+    monitors.forEach((monitorX, monitorIndex) => {
+      const scan = this.add
+        .rectangle(monitorX + 12, desk.y + 22, monitorWidth - 24, 4, desk.accent, 0.38)
+        .setOrigin(0, 0.5)
+        .setDepth(Math.round(desk.y + 58));
+      this.trackAmbientPulse(scan, {
+        baseAlpha: 0.22,
+        amplitude: 0.28,
+        speed: 520 + monitorIndex * 120,
+        phase: monitorIndex * 1.3,
+        driftY: 8,
+        scaleAmplitude: 0.035
+      });
+
+      const typing = this.add
+        .rectangle(desk.x + desk.width / 2 - 26 + monitorIndex * 18, desk.y + 101, 12, 4, desk.accent, 0.24)
+        .setDepth(Math.round(desk.y + desk.height - 2));
+      this.trackAmbientPulse(typing, {
+        baseAlpha: 0.16,
+        amplitude: 0.3,
+        speed: 260 + monitorIndex * 80,
+        phase: monitorIndex * 0.9,
+        scaleAmplitude: 0.12
+      });
+    });
+  }
+
+  private addServerLights() {
+    const rack = this.layout.zones.serverRack;
+
+    for (let rackIndex = 0; rackIndex < 2; rackIndex += 1) {
+      const rackX = rack.x + rackIndex * 58;
+      for (let index = 0; index < 5; index += 1) {
+        const light = this.add
+          .rectangle(rackX + 12, rack.y + 20 + index * 22, 7, 4, index % 2 === 0 ? 0x34d399 : 0xfbbf24, 0.5)
+          .setDepth(Math.round(rack.y + 20 + index * 22));
+        this.trackAmbientPulse(light, {
+          baseAlpha: 0.2,
+          amplitude: 0.48,
+          speed: 380 + index * 130 + rackIndex * 90,
+          phase: index * 0.7 + rackIndex
+        });
+      }
+    }
+  }
+
+  private addCoffeeSteam(bar: RoomObject) {
+    for (let index = 0; index < 3; index += 1) {
+      const steam = this.add
+        .ellipse(bar.x + bar.width - 36 + index * 7, bar.y + 1, 6, 13, 0xffedd5, 0.12)
+        .setDepth(Math.round(bar.y + 76));
+      this.trackAmbientPulse(steam, {
+        baseAlpha: 0.06,
+        amplitude: 0.16,
+        speed: 980 + index * 210,
+        phase: index * 1.2,
+        driftX: index % 2 === 0 ? 4 : -3,
+        driftY: -18,
+        scaleAmplitude: 0.18
+      });
+    }
+  }
+
+  private addApprovalSparkles(board: RoomObject) {
+    const points = [
+      { x: board.x + 26, y: board.y + 24 },
+      { x: board.x + board.width - 28, y: board.y + 36 },
+      { x: board.x + board.width * 0.58, y: board.y + board.height - 28 }
+    ];
+
+    points.forEach((point, index) => {
+      const sparkle = this.add
+        .rectangle(point.x, point.y, 5, 5, index === 1 ? 0x60a5fa : 0xfbbf24, 0.22)
+        .setDepth(Math.round(board.y + board.height + 2));
+      this.trackAmbientPulse(sparkle, {
+        baseAlpha: 0.08,
+        amplitude: 0.34,
+        speed: 640 + index * 180,
+        phase: index * 1.8,
+        driftY: -4,
+        scaleAmplitude: 0.34
+      });
+    });
+  }
+
+  private addSoftFloorMotes() {
+    const { room } = this.layout;
+    const floorTop = room.y + room.height * 0.28;
+
+    for (let index = 0; index < 12; index += 1) {
+      const mote = this.add
+        .rectangle(
+          Phaser.Math.Between(Math.round(room.x + 72), Math.round(room.x + room.width - 72)),
+          Phaser.Math.Between(Math.round(floorTop), Math.round(room.y + room.height - 78)),
+          2,
+          2,
+          index % 3 === 0 ? 0xfbbf24 : 0x93c5fd,
+          0.08
+        )
+        .setDepth(1);
+      this.trackAmbientPulse(mote, {
+        baseAlpha: 0.025,
+        amplitude: 0.09,
+        speed: 1600 + index * 170,
+        phase: index * 0.9,
+        driftX: index % 2 === 0 ? 5 : -5,
+        driftY: index % 3 === 0 ? -3 : 4,
+        scaleAmplitude: 0.22
+      });
+    }
+  }
+
+  private trackAmbientPulse(
+    object: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Ellipse,
+    options: Omit<AmbientPulse, "object" | "baseX" | "baseY">
+  ) {
+    this.ambientObjects.push(object);
+    this.ambientPulses.push({
+      object,
+      baseX: object.x,
+      baseY: object.y,
+      ...options
+    });
+  }
+
+  private updateAmbientLife(time: number) {
+    for (const pulse of this.ambientPulses) {
+      const wave = (Math.sin(time / pulse.speed + pulse.phase) + 1) / 2;
+      pulse.object.setAlpha(pulse.baseAlpha + wave * pulse.amplitude);
+      pulse.object.setPosition(
+        pulse.baseX + (pulse.driftX ?? 0) * wave,
+        pulse.baseY + (pulse.driftY ?? 0) * wave
+      );
+
+      if (pulse.scaleAmplitude) {
+        const scale = 1 + wave * pulse.scaleAmplitude;
+        pulse.object.setScale(scale, scale);
+      }
+    }
   }
 
   private drawMainScreen(graphics: Phaser.GameObjects.Graphics, screen: RoomObject) {
@@ -575,6 +750,16 @@ export class AgentRoomScene extends Phaser.Scene {
     front.lineStyle(2, 0xc79a62, 0.52);
     front.strokeEllipse(table.x + table.width / 2, table.y + table.height / 2 + 10, table.width * 0.88, table.height * 0.44);
     this.ambientObjects.push(front);
+
+    const chairs = this.add.graphics().setDepth(Math.round(table.y + table.height + 22));
+    for (let i = 0; i < 4; i += 1) {
+      const chairX = table.x + table.width * (0.22 + i * 0.19);
+      chairs.fillStyle(0x1f2937, 0.96);
+      chairs.fillRoundedRect(chairX - 1, table.y + table.height + 1, 30, 21, 5);
+      chairs.fillStyle(0x60a5fa, 0.16);
+      chairs.fillRoundedRect(chairX + 5, table.y + table.height + 5, 18, 5, 2);
+    }
+    this.ambientObjects.push(chairs);
   }
 
   private drawCoffeeBarOccluder(bar: RoomObject) {
@@ -603,6 +788,7 @@ export class AgentRoomScene extends Phaser.Scene {
       item.destroy();
     }
     this.ambientObjects = [];
+    this.ambientPulses = [];
   }
 
 }

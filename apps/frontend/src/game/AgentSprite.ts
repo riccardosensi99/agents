@@ -36,7 +36,7 @@ const frameCountByMode: Record<GeneratedMode, number> = {
 const profiles: Record<AgentVisualKey, AgentVisualProfile> = {
   instaspark: {
     key: "instaspark",
-    scale: 1.18,
+    scale: 0.94,
     width: 72,
     height: 82,
     speed: 122,
@@ -44,14 +44,14 @@ const profiles: Record<AgentVisualKey, AgentVisualProfile> = {
     accentAlt: 0xfacc15,
     dark: 0x451a03,
     label: "#fed7aa",
-    shadowWidth: 44,
-    shadowHeight: 13,
+    shadowWidth: 36,
+    shadowHeight: 11,
     interactiveWidth: 72,
     interactiveHeight: 88
   },
   linkforge: {
     key: "linkforge",
-    scale: 1.14,
+    scale: 1,
     width: 74,
     height: 84,
     speed: 76,
@@ -59,14 +59,14 @@ const profiles: Record<AgentVisualKey, AgentVisualProfile> = {
     accentAlt: 0x14b8a6,
     dark: 0x083344,
     label: "#cffafe",
-    shadowWidth: 46,
+    shadowWidth: 42,
     shadowHeight: 12,
     interactiveWidth: 74,
     interactiveHeight: 86
   },
   overseer: {
     key: "overseer",
-    scale: 1.22,
+    scale: 1.18,
     width: 86,
     height: 96,
     speed: 50,
@@ -113,6 +113,8 @@ export class AgentSprite {
   private readonly phase = Math.random() * Math.PI * 2;
   private facing: 1 | -1 = 1;
   private lastTexture = "";
+  private turnUntil = 0;
+  private nextLookAroundAt = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -183,7 +185,7 @@ export class AgentSprite {
     this.target = target ? { ...target } : null;
 
     if (target && Math.abs(target.x - this.basePoint.x) > 3) {
-      this.facing = target.x < this.basePoint.x ? -1 : 1;
+      this.setFacing(target.x < this.basePoint.x ? -1 : 1);
     }
   }
 
@@ -202,6 +204,7 @@ export class AgentSprite {
   update(time: number, deltaMs: number) {
     const moving = this.advanceTowardsTarget(deltaMs);
     const visualMode: RoomAgentMode = moving ? "walk" : this.mode;
+    this.maybeLookAround(time, moving, visualMode);
     const frame = this.frameForMode(visualMode, time);
     const nextTexture = textureKey(this.profile.key, visualMode, frame);
 
@@ -215,7 +218,7 @@ export class AgentSprite {
     this.updateStatusVfx(visualMode, time);
 
     this.container.setPosition(this.basePoint.x, this.basePoint.y);
-    this.container.setDepth(Math.round(this.basePoint.y + 12));
+    this.container.setDepth(Math.round(this.basePoint.y));
   }
 
   destroy() {
@@ -242,7 +245,7 @@ export class AgentSprite {
     this.basePoint.y += dy * step;
 
     if (Math.abs(dx) > 0.08) {
-      this.facing = dx < 0 ? -1 : 1;
+      this.setFacing(dx < 0 ? -1 : 1);
     }
 
     return true;
@@ -269,15 +272,27 @@ export class AgentSprite {
   private updateMotionPose(mode: RoomAgentMode, moving: boolean, time: number) {
     const walkPhase = time / (this.profile.key === "overseer" ? 170 : this.profile.key === "instaspark" ? 92 : 125) + this.phase;
     const idlePhase = time / (this.profile.key === "instaspark" ? 390 : 610) + this.phase;
-    const walkLift = moving ? Math.abs(Math.sin(walkPhase)) * (this.profile.key === "overseer" ? 3.2 : 5.8) : 0;
+    const stride = Math.sin(walkPhase);
+    const stepBeat = Math.abs(stride);
+    const walkLift = moving ? stepBeat * (this.profile.key === "overseer" ? 3.1 : this.profile.key === "instaspark" ? 5.2 : 4.1) : 0;
     const idleBob = !moving ? Math.sin(idlePhase) * (this.profile.key === "linkforge" ? 1.1 : 1.9) : 0;
     const workPulse = mode === "working" ? Math.sin(time / 120 + this.phase) * 1.1 : 0;
     const errorJitter = mode === "error" ? Math.sin(time / 27) * 2.4 : 0;
-    const squash = moving ? Math.sin(walkPhase) * 0.035 : Math.sin(idlePhase) * 0.012;
+    const squash = moving ? stepBeat * 0.038 : Math.sin(idlePhase) * 0.012;
+    const lateralStep = moving ? stride * (this.profile.key === "instaspark" ? 2.1 : this.profile.key === "overseer" ? 0.9 : 1.3) : 0;
+    const turnPulse = Math.max(0, Math.sin(((this.turnUntil - time) / 180) * Math.PI));
+    const turnSquash = time < this.turnUntil ? turnPulse : 0;
 
-    this.body.setPosition(errorJitter, -3 - walkLift + idleBob + workPulse);
-    this.body.setScale(this.profile.scale * (1 + squash), this.profile.scale * (1 - squash * 0.72));
-    this.body.setRotation(moving ? Math.sin(walkPhase) * 0.035 : Math.sin(idlePhase) * 0.015);
+    this.body.setPosition(errorJitter + lateralStep, -3 - walkLift + idleBob + workPulse);
+    this.body.setScale(
+      this.profile.scale * (1 + squash - turnSquash * 0.1),
+      this.profile.scale * (1 - squash * 0.58 + turnSquash * 0.08)
+    );
+    this.body.setRotation(
+      moving
+        ? stride * (this.profile.key === "instaspark" ? 0.055 : this.profile.key === "overseer" ? 0.026 : 0.034)
+        : Math.sin(idlePhase) * 0.015 + turnSquash * 0.05 * this.facing
+    );
 
     if (mode === "error") {
       this.body.setTint(0xffb4b4);
@@ -287,9 +302,9 @@ export class AgentSprite {
       this.body.clearTint();
     }
 
-    const shadowPulse = 1 - walkLift * 0.018;
-    this.shadow.setScale(shadowPulse, 1 + walkLift * 0.01);
-    this.shadow.setAlpha(mode === "walk" ? 0.38 : 0.46 + Math.sin(idlePhase) * 0.04);
+    const shadowPulse = 1 - walkLift * 0.02;
+    this.shadow.setScale(shadowPulse + turnSquash * 0.08, 1 + walkLift * 0.01);
+    this.shadow.setAlpha(mode === "walk" ? 0.36 : 0.44 + Math.sin(idlePhase) * 0.035);
 
     const auraVisible = this.profile.key === "overseer" || mode === "working" || mode === "thinking" || mode === "waiting_approval";
     this.aura.setAlpha(auraVisible ? 0.06 + Math.sin(time / 520 + this.phase) * 0.025 : 0);
@@ -328,6 +343,35 @@ export class AgentSprite {
       bar.setAlpha(active ? 0.35 + pulse * 0.55 : 0);
       bar.setPosition((pulse * 10 - 5) * (index % 2 === 0 ? 1 : -1), -55 + index * 13);
     });
+  }
+
+  private maybeLookAround(time: number, moving: boolean, mode: RoomAgentMode) {
+    if (moving || mode === "working" || mode === "error" || time < this.nextLookAroundAt) {
+      return;
+    }
+
+    const chance = this.profile.key === "instaspark" ? 62 : this.profile.key === "overseer" ? 42 : 16;
+    const delay =
+      this.profile.key === "instaspark"
+        ? Phaser.Math.Between(900, 2200)
+        : this.profile.key === "overseer"
+          ? Phaser.Math.Between(2100, 4200)
+          : Phaser.Math.Between(4200, 7600);
+
+    if (Phaser.Math.Between(0, 100) < chance) {
+      this.setFacing(this.facing * -1 as 1 | -1);
+    }
+
+    this.nextLookAroundAt = time + delay;
+  }
+
+  private setFacing(nextFacing: 1 | -1) {
+    if (nextFacing === this.facing) {
+      return;
+    }
+
+    this.facing = nextFacing;
+    this.turnUntil = this.scene.time.now + 180;
   }
 }
 
