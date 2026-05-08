@@ -5,6 +5,7 @@ import { safeErrorMessage } from "../../lib/redact";
 import { getDefaultBrandProfile } from "../brand/brandProfileService";
 import { createInitialDraftVersion } from "../drafts/draftVersionService";
 import { createNotification } from "../notifications/notificationService";
+import { notifyTelegramDraftReady } from "../telegram/telegramApprovalService";
 import { runInstagramAgent } from "../agents/instagramAgent";
 import { runLinkedInAgent } from "../agents/linkedinAgent";
 import { reviewDraftWithSupervisor } from "../agents/supervisorAgent";
@@ -223,6 +224,13 @@ export async function runTask(taskId: string) {
           draftId: draft.id,
           recommendedAction: supervisorReview?.recommendedAction
         }
+      });
+
+      await notifyTelegramDraftReady(draft.id).catch((error) => {
+        console.warn("telegram.draft_notification_failed", {
+          draftId: draft.id,
+          message: error instanceof Error ? error.message : "unknown"
+        });
       });
 
       if (supervisorReview?.recommendedAction === "revise" || supervisorReview?.recommendedAction === "reject") {

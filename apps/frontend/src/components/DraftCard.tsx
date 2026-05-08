@@ -184,6 +184,16 @@ export function DraftCard({ draft, onSave, onApprove, onReject, onRevision, onRe
           <Edit3 size={16} />
           Modifica
         </button>
+        {draft.platform === "linkedin" && draft.status === "approved" ? (
+          <button
+            type="button"
+            disabled
+            title="LinkedIn publishing is prepared but not enabled. No automatic publishing is available."
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm text-slate-500 opacity-60"
+          >
+            Publish LinkedIn
+          </button>
+        ) : null}
         {editing ? (
           <LoadingButton
             type="button"

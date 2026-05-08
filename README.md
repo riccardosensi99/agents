@@ -29,6 +29,9 @@ apps/
       pages/
 docker-compose.yml
 .env.example
+.env.production.example
+ROADMAP.md
+DEPLOYMENT.md
 ```
 
 ## Avvio locale
@@ -108,6 +111,10 @@ Checklist minima per una prima produzione interna:
 - `SCHEDULER_ENABLED`: `false` di default. Se `true`, crea task e bozze schedulate per InstaSpark e LinkForge.
 - `INSTAGRAM_CRON`: cron per task Instagram, default lunedi/mercoledi/venerdi alle 09:00.
 - `LINKEDIN_CRON`: cron per task LinkedIn, default martedi/giovedi alle 09:00.
+- `TELEGRAM_ENABLED`: `false` di default. Se `true`, invia bozze in approvazione a Telegram.
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_URL`: configurazione bot e webhook Telegram.
+- `LINKEDIN_ENABLED`: `false` di default. Prepara solo mapping/guardrail LinkedIn.
+- `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI`: placeholder OAuth LinkedIn per integrazione futura.
 - `REDIS_URL`: configurazione preparata per rate limit/queue futuri, non ancora usata come store runtime.
 - `VITE_API_URL`: URL API usato in build frontend. In Docker resta `/api` e nginx fa proxy al backend.
 
@@ -164,6 +171,17 @@ Campi principali:
 - parole/frasi da evitare
 
 Questo contesto viene passato a InstaSpark, LinkForge e Overseer.
+
+## Gestione agenti
+
+La pagina `Agents` permette di:
+
+- creare agenti custom
+- modificare nome, slug, ruolo, descrizione, status e avatar
+- configurare `platformTarget` e `basePrompt` dentro `agent.config`
+- assegnare task e vedere task/draft collegati
+
+Gli agenti custom usano `avatarType` selezionabile. Se l'Agent Room non ha ancora uno sprite dedicato, usa un fallback generato nel codice senza asset esterni.
 
 ## Agent Room
 
@@ -231,6 +249,8 @@ Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibi
 - `POST /api/drafts/:id/reject`
 - `POST /api/drafts/:id/request-revision`
 - `POST /api/drafts/:id/regenerate`
+- `POST /api/telegram/webhook`
+- `POST /api/social/linkedin/drafts/:id/prepare`
 - `GET /api/settings/brand-profile`
 - `PUT /api/settings/brand-profile`
 - `GET /api/system/status`
@@ -238,7 +258,33 @@ Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibi
 - `POST /api/system/notifications/:id/read`
 - `POST /api/system/notifications/read-all`
 
-Tutte le route operative richiedono `Authorization: Bearer <token>`. Usa `POST /api/auth/login` per ottenere il token.
+Tutte le route operative richiedono `Authorization: Bearer <token>` tranne `POST /api/telegram/webhook`, protetta da `x-telegram-bot-api-secret-token`. Usa `POST /api/auth/login` per ottenere il token.
+
+## Telegram approvals
+
+Telegram e disattivato di default. Quando `TELEGRAM_ENABLED=true` e la configurazione e completa, ogni bozza social in `waiting_approval` invia un messaggio con:
+
+- titolo, piattaforma e agente
+- contenuto bozza
+- score/risk/feedback Supervisor
+- pulsanti inline: approva, rifiuta, chiedi revisione
+
+Il webhook accetta solo richieste con header `x-telegram-bot-api-secret-token` uguale a `TELEGRAM_WEBHOOK_SECRET`. Le callback sono idempotenti tramite `TelegramApprovalAction.callbackId`.
+
+## LinkedIn preparation
+
+LinkedIn non pubblica contenuti in questa versione.
+
+Disponibile solo la preparazione:
+
+- env OAuth placeholder
+- modello `SocialAccount`
+- modello `PublishingAttempt`
+- mapper da bozza approvata LinkedIn a payload futuro
+- endpoint `POST /api/social/linkedin/drafts/:id/prepare`
+- bottone UI disabilitato su bozze LinkedIn approvate
+
+Guardrail: solo bozze approvate possono essere preparate; nessun auto-publish.
 
 ## Primo task via API
 
@@ -272,6 +318,9 @@ Lo smoke test fa:
 - healthcheck
 - login
 - lettura Brand Profile
+- verifica fallback Telegram disabled
+- creazione/modifica agente custom
+- task internal con agente custom
 - creazione task InstaSpark
 - run task in mock/OpenAI
 - creazione bozza
@@ -312,6 +361,10 @@ Errori da verificare durante sviluppo:
 
 In development il client logga in console `api.response`, `api.error_payload` e `api.normalize_error` senza includere request body o segreti.
 
+## Roadmap
+
+La roadmap production e in `ROADMAP.md`. Il Project GitHub desiderato e `AI Agent Platform - Production Roadmap`; se non e disponibile automazione Project, usa le issue GitHub e `ROADMAP.md` come backlog sprint.
+
 ## Stato production-readiness
 
 Pronto per una prima produzione interna:
@@ -323,6 +376,8 @@ Pronto per una prima produzione interna:
 - Brand Profile usato da InstaSpark, LinkForge e Overseer
 - workflow task -> bozza -> supervisor -> approvazione manuale con versioni
 - notifiche interne DB/UI per bozze, failure e raccomandazioni Supervisor
+- Telegram approvals disattivato di default con webhook sicuro
+- LinkedIn publishing architecture preparata, senza pubblicazione reale
 - Docker Compose con Postgres, Redis preparato, nginx proxy `/api`, healthcheck backend
 
 Resta da fare per produzione piena:

@@ -140,6 +140,14 @@ export type SystemStatus = {
     approvalDrafts: number;
   };
   unreadNotifications: number;
+  telegram?: {
+    enabled: boolean;
+    configured: boolean;
+  };
+  linkedin?: {
+    enabled: boolean;
+    configured: boolean;
+  };
   recentEvents: Array<{
     id: string;
     level: string;

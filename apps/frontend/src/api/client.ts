@@ -25,6 +25,16 @@ type RequestOptions = {
   body?: unknown;
 };
 
+export type AgentMutationInput = {
+  name: string;
+  slug?: string;
+  role: string;
+  description: string;
+  status?: Agent["status"];
+  avatarType: string;
+  config?: Record<string, unknown>;
+};
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -170,6 +180,14 @@ export const api = {
     return requestData<Agent>(`/agents/${id}`, {
       token,
       method: "PATCH",
+      body
+    });
+  },
+
+  async createAgent(token: string, body: AgentMutationInput) {
+    return requestData<Agent>("/agents", {
+      token,
+      method: "POST",
       body
     });
   },

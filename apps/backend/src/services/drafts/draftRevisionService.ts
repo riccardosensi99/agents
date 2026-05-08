@@ -5,6 +5,7 @@ import { runInstagramAgent } from "../agents/instagramAgent";
 import { runLinkedInAgent } from "../agents/linkedinAgent";
 import { reviewDraftWithSupervisor } from "../agents/supervisorAgent";
 import { createNotification } from "../notifications/notificationService";
+import { notifyTelegramDraftReady } from "../telegram/telegramApprovalService";
 import { createDraftVersion } from "./draftVersionService";
 
 const db = prisma as any;
@@ -151,6 +152,13 @@ export async function regenerateDraft(params: {
       version: nextVersion,
       recommendedAction: review.recommendedAction
     }
+  });
+
+  await notifyTelegramDraftReady(draft.id).catch((error) => {
+    console.warn("telegram.draft_notification_failed", {
+      draftId: draft.id,
+      message: error instanceof Error ? error.message : "unknown"
+    });
   });
 
   if (review.recommendedAction === "revise" || review.recommendedAction === "reject") {

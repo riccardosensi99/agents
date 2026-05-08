@@ -6,7 +6,9 @@ import { Sidebar, type ViewKey } from "./components/Sidebar";
 import { RouteLoadBoundary } from "./components/RouteLoadBoundary";
 import { Topbar } from "./components/Topbar";
 import { ToastProvider, useToast } from "./components/toast/ToastProvider";
+import type { AgentFormValues } from "./components/agents/AgentForm";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
+import { AgentsPage } from "./pages/AgentsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -334,6 +336,14 @@ function AppContent() {
         await loadAll();
         await loadSelectedAgent();
       },
+      async createAgent(body: AgentFormValues) {
+        if (!token) {
+          return;
+        }
+        const agent = await api.createAgent(token, body);
+        await loadAll();
+        return agent;
+      },
       async saveBrandProfile(body: Partial<BrandProfile>) {
         if (!token) {
           return;
@@ -385,11 +395,23 @@ function AppContent() {
           agent={selectedAgent}
           onBack={() => {
             setSelectedAgentId(null);
-            changeView("dashboard");
+            changeView("agents");
           }}
           onPause={handlers.pauseAgent}
           onUpdate={handlers.updateAgent}
           onCreateTask={(body) => handlers.createTask(selectedAgent.id, body)}
+        />
+      );
+    }
+
+    if (activeView === "agents") {
+      return (
+        <AgentsPage
+          agents={agents}
+          onOpenAgent={openAgent}
+          onCreateAgent={handlers.createAgent}
+          onUpdateAgent={handlers.updateAgent}
+          onPauseAgent={handlers.pauseAgent}
         />
       );
     }
