@@ -1,6 +1,7 @@
 import { env, getSafeStartupConfig } from "./config/env";
 import { prisma } from "./db/prisma";
 import { createApp } from "./app";
+import { closeRateLimitStore } from "./middleware/rateLimit";
 import { startScheduler, stopScheduler } from "./scheduler/scheduler";
 
 const app = createApp();
@@ -15,7 +16,7 @@ async function shutdown(signal: string) {
   console.log(`Received ${signal}, shutting down`);
   stopScheduler();
   server.close(async () => {
-    await prisma.$disconnect();
+    await Promise.all([prisma.$disconnect(), closeRateLimitStore()]);
     process.exit(0);
   });
 }

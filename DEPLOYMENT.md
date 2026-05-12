@@ -24,6 +24,7 @@ Required production values:
 - `JWT_SECRET`: at least 32 random characters, never a placeholder.
 - `POSTGRES_PASSWORD`: long random password.
 - `CORS_ORIGIN`: final HTTPS origin.
+- `REDIS_URL`: Redis connection used by the production rate limiter.
 - `OPENAI_API_KEY`: set only when using real OpenAI calls.
 
 Optional integrations remain disabled unless explicitly configured:
@@ -118,4 +119,3 @@ Production publishing requires LinkedIn app review, OAuth token storage, refresh
 - [ ] TLS is enabled.
 - [ ] Firewall blocks DB/Redis from public internet.
 - [ ] Social publishing remains disabled until intentionally implemented.
-

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      NODE_ENV: development
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agents
+      POSTGRES_PORT: 5433
+      REDIS_PORT: 6380
+      BACKEND_PORT: 4000
+      FRONTEND_PORT: 3000
+      CORS_ORIGIN: http://localhost:3000
+      JWT_SECRET: local-dev-jwt-secret-change-before-production-32
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX: 180
+      OPENAI_API_KEY: ""
+      OPENAI_MODEL: gpt-4o-mini
+      OPENAI_TIMEOUT_MS: 45000
+      SCHEDULER_ENABLED: "false"
+      TELEGRAM_ENABLED: "false"
+      LINKEDIN_ENABLED: "false"
+      VITE_API_URL: /api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Build and start Docker stack
+        run: docker compose up --build -d
+
+      - name: Seed database
+        run: docker compose exec -T backend npx prisma db seed
+
+      - name: Healthcheck
+        run: npm run healthcheck
+
+      - name: Smoke test
+        run: npm run smoke
+
+      - name: Docker logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
