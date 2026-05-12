@@ -187,6 +187,8 @@ Gli agenti custom usano `avatarType` selezionabile. Se l'Agent Room non ha ancor
 
 La vista `Agent Room` trasforma gli agenti in creature companion originali dentro una control room 2D Phaser. Non usa asset esterni e non contiene nomi, sprite o elementi coperti da copyright.
 
+Gli avatar Phaser sono generati runtime con texture pixel-art originali. Ogni agente supporta direzioni `down`, `up`, `left` e `right`, cicli `idle`/`walk` e stati visuali per working, thinking, error e waiting approval. Gli agenti custom senza sprite dedicato ricevono un fallback deterministico basato su id/slug/avatarType, con palette e silhouette coerenti ma non derivate da asset esterni.
+
 Percorsi:
 
 - Dev server: `http://localhost:5173/agent-room`
@@ -214,12 +216,13 @@ File principali:
 
 ## Sostituire gli avatar placeholder con sprite sheet
 
-Gli avatar attuali sono texture generate runtime da `registerAgentSpriteTextures()` in `apps/frontend/src/game/AgentSprite.ts`. Per passare a sprite sheet reali:
+Gli avatar attuali sono texture generate runtime da `registerAgentSpriteTextures()` e `ensureAgentSpriteTextures()` in `apps/frontend/src/game/AgentSprite.ts`. Per passare a sprite sheet reali:
 
 1. Aggiungi i file in `apps/frontend/public/sprites/`.
-2. In `AgentRoomScene.preload()` carica gli sheet con `this.load.spritesheet("agent-instaspark", "/sprites/instaspark.png", { frameWidth, frameHeight })`, oppure sostituisci la registrazione runtime in `AgentSprite.ts`.
-3. In `create()` crea le animazioni Phaser (`idle`, `walk`, `working`, `thinking`, `error`, `waiting_approval`).
-4. In `AgentSprite.ts` sostituisci `scene.add.image(...)` con `scene.add.sprite(...)` e mappa `setMode()` alle animazioni.
+2. Prepara sheet originali per ogni direzione (`down`, `up`, `right`, `left`) e modo (`idle`, `walk`, `working`, `thinking`, `error`, `waiting_approval`).
+3. In `AgentRoomScene.preload()` carica gli sheet con `this.load.spritesheet("agent-instaspark", "/sprites/instaspark.png", { frameWidth, frameHeight })`, oppure sostituisci la registrazione runtime in `AgentSprite.ts`.
+4. In `create()` crea le animazioni Phaser usando chiavi stabili, ad esempio `agent-instaspark-down-walk`.
+5. In `AgentSprite.ts` sostituisci `scene.add.image(...)` con `scene.add.sprite(...)` e mappa `setMode()` + direzione alle animazioni.
 
 Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibili di franchise esistenti.
 
@@ -227,7 +230,7 @@ Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibi
 
 1. Crea l'agente via `POST /api/agents` o aggiungilo al seed Prisma.
 2. Assegna un `slug` e un `avatarType` originali.
-3. Aggiungi una texture placeholder o sprite sheet per `agent-<avatarType>` in `AgentSprite.ts`.
+3. Se non esiste uno sprite dedicato, il fallback custom genera automaticamente una variante originale e stabile.
 4. Se serve un comportamento dedicato, estendi `agentMovement.ts` con una nuova destinazione o velocita.
 5. Il frontend lo mostrera automaticamente perche la stanza usa `GET /api/agents`.
 

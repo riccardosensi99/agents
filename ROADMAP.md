@@ -43,11 +43,13 @@ Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon,
 | Ticket | Priorita | Labels | Acceptance criteria |
 | --- | --- | --- | --- |
 | Redesign agent avatars as pixel-art dev/NPC characters | Medium | feature, frontend | Avatar sembrano operatori AI/dev, non emoji/blob. |
+| Add avatar direction animations | Medium | feature, frontend | Texture e movimento supportano down/up/left/right senza limitarsi al flip orizzontale. |
 | Add walking animation cycles | Medium | feature, frontend | Camminata leggibile, senza sliding evidente. |
 | Add idle animation cycles | Medium | feature, frontend | Idle breathing/blinking differenziati. |
 | Add blinking/breathing micro animations | Low | frontend | Micro animazioni soft e non distraenti. |
 | Add avatar rendering depth improvements | Medium | frontend | Depth e occlusion coerenti con la stanza. |
 | Add fallback avatar generator for custom agents | High | frontend | Custom agent senza sprite non rompe Agent Room. |
+| Prepare sprite sheet pipeline for future artists/assets | Medium | frontend, chore | README documenta direzioni, stati e percorso di sostituzione con asset originali futuri. |
 | Improve Agent Room immersion and NPC feeling | Low | frontend | Solo refinements mirati, senza nuove feature enterprise. |
 
 ### Sprint 3 - Telegram Approvals
@@ -109,11 +111,9 @@ Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon,
 
 | Ticket | Priorita | Labels | Acceptance criteria |
 | --- | --- | --- | --- |
-| Add avatar direction animations | Medium | feature, frontend | Supporto up/down/left/right o facing equivalente. |
 | Add workstation interaction animations | Medium | frontend | Working/thinking hanno interazioni con desk/monitor. |
 | Add layered clothing/accessories system | Low | frontend | Struttura per outfit/accessori configurabili. |
 | Add avatar customization support | Medium | frontend | Custom agents scelgono archetype, palette e visual role. |
-| Prepare sprite sheet pipeline for future artists/assets | Medium | frontend, chore | Config documentata per sostituire placeholder con asset originali. |
 
 ## Production Hardening Backlog
 
