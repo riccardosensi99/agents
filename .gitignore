@@ -7,5 +7,6 @@ dist
 coverage
 .DS_Store
 *.log
+AGENT.md
 apps/backend/prisma/migrations/dev.db
 apps/frontend/.vite

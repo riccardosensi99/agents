@@ -104,7 +104,7 @@ Checklist minima per una prima produzione interna:
 - `DATABASE_URL`: connessione PostgreSQL per sviluppo locale.
 - `JWT_SECRET`: segreto JWT. In produzione deve essere lungo almeno 32 caratteri e non puo essere un placeholder.
 - `CORS_ORIGIN`: origine frontend ammessa dal backend, ad esempio `https://agents.example.com`.
-- `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`: rate limit API in memoria per singola istanza. La struttura e pronta per sostituire lo store con Redis.
+- `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`: finestra e soglia del rate limit API.
 - `OPENAI_API_KEY`: se vuoto, il backend usa risposte mock deterministiche.
 - `OPENAI_MODEL`: modello OpenAI configurabile.
 - `OPENAI_TIMEOUT_MS`: timeout massimo per richiesta OpenAI.
@@ -115,7 +115,7 @@ Checklist minima per una prima produzione interna:
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_URL`: configurazione bot e webhook Telegram.
 - `LINKEDIN_ENABLED`: `false` di default. Prepara solo mapping/guardrail LinkedIn.
 - `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI`: placeholder OAuth LinkedIn per integrazione futura.
-- `REDIS_URL`: configurazione preparata per rate limit/queue futuri, non ancora usata come store runtime.
+- `REDIS_URL`: store Redis per rate limit condiviso in produzione. In development/test il backend puo ripiegare sullo store in memoria se Redis non e disponibile.
 - `VITE_API_URL`: URL API usato in build frontend. In Docker resta `/api` e nginx fa proxy al backend.
 
 La validazione env avviene all'avvio backend in `apps/backend/src/config/env.ts`. Lo startup log mostra solo stato/config safe, mai `JWT_SECRET`, `OPENAI_API_KEY` o prompt completi.
@@ -369,7 +369,7 @@ La roadmap production e in `ROADMAP.md`. Il Project GitHub desiderato e `AI Agen
 
 Pronto per una prima produzione interna:
 
-- auth JWT con env validata e rate limit su auth/task run
+- auth JWT con env validata e rate limit Redis-backed in produzione
 - task runner con lifecycle, retry falliti, cancel pending, lock anti doppio run e log eventi
 - AI OpenAI reale se `OPENAI_API_KEY` esiste, mock deterministico se manca
 - prompt separati e output validati con Zod
@@ -378,11 +378,11 @@ Pronto per una prima produzione interna:
 - notifiche interne DB/UI per bozze, failure e raccomandazioni Supervisor
 - Telegram approvals disattivato di default con webhook sicuro
 - LinkedIn publishing architecture preparata, senza pubblicazione reale
-- Docker Compose con Postgres, Redis preparato, nginx proxy `/api`, healthcheck backend
+- Docker Compose con Postgres, Redis, nginx proxy `/api`, healthcheck backend
 
 Resta da fare per produzione piena:
 
-- Redis-backed rate limit e worker separato per job lunghi
+- worker separato per job lunghi
 - ruoli/permessi piu granulari se entrano piu utenti
 - backup/restore automatizzati e monitoraggio esterno
 - audit trail piu dettagliato per publishing futuro

@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { createClient } from "redis";
 import { env } from "../config/env";
 
 type Bucket = {
@@ -7,7 +8,7 @@ type Bucket = {
 };
 
 type RateLimitStore = {
-  hit(key: string, windowMs: number): Bucket;
+  hit(key: string, windowMs: number): Bucket | Promise<Bucket>;
 };
 
 type RateLimitOptions = {
@@ -55,6 +56,114 @@ class MemoryRateLimitStore implements RateLimitStore {
 }
 
 const memoryStore = new MemoryRateLimitStore();
+type RedisClient = ReturnType<typeof createClient>;
+
+const redisHitScript = `
+local current = redis.call("INCR", KEYS[1])
+if current == 1 then
+  redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+local ttl = redis.call("PTTL", KEYS[1])
+return { current, ttl }
+`;
+
+class RedisRateLimitStore implements RateLimitStore {
+  private client: RedisClient | null = null;
+  private connectPromise: Promise<RedisClient> | null = null;
+  private unavailableUntil = 0;
+
+  constructor(
+    private readonly url: string,
+    private readonly fallback: MemoryRateLimitStore,
+    private readonly fallbackAllowed: boolean
+  ) {}
+
+  async hit(key: string, windowMs: number) {
+    const now = Date.now();
+
+    if (this.fallbackAllowed && now < this.unavailableUntil) {
+      return this.fallback.hit(key, windowMs);
+    }
+
+    try {
+      const client = await this.getClient();
+      const result = await client.eval(redisHitScript, {
+        keys: [`rate-limit:${key}`],
+        arguments: [String(windowMs)]
+      });
+      const [countValue, ttlValue] = Array.isArray(result) ? result : [1, windowMs];
+      const ttlMs = Number(ttlValue);
+
+      return {
+        count: Number(countValue),
+        resetAt: Date.now() + Math.max(Number.isFinite(ttlMs) ? ttlMs : windowMs, 1)
+      };
+    } catch (error) {
+      this.resetConnection({ destroy: true });
+
+      if (!this.fallbackAllowed) {
+        throw error;
+      }
+
+      this.unavailableUntil = Date.now() + 30_000;
+      console.warn("rate_limit.redis_unavailable_fallback_memory", {
+        message: error instanceof Error ? error.message : "unknown"
+      });
+      return this.fallback.hit(key, windowMs);
+    }
+  }
+
+  async close() {
+    if (!this.client?.isOpen) {
+      this.resetConnection();
+      return;
+    }
+
+    const client = this.client;
+    this.resetConnection();
+    await client.quit().catch(() => client.destroy());
+  }
+
+  private async getClient() {
+    if (this.client?.isReady) {
+      return this.client;
+    }
+
+    if (!this.connectPromise) {
+      const client = createClient({ url: this.url });
+      client.on("error", (error) => {
+        console.warn("rate_limit.redis_error", {
+          message: error instanceof Error ? error.message : "unknown"
+        });
+      });
+      this.client = client;
+      this.connectPromise = client
+        .connect()
+        .then(() => client)
+        .catch((error) => {
+          this.resetConnection({ destroy: true });
+          throw error;
+        });
+    }
+
+    return this.connectPromise;
+  }
+
+  private resetConnection(options: { destroy?: boolean } = {}) {
+    const client = this.client;
+    this.connectPromise = null;
+    this.client = null;
+
+    if (options.destroy && client?.isOpen) {
+      client.destroy();
+    }
+  }
+}
+
+const redisStore = env.REDIS_URL
+  ? new RedisRateLimitStore(env.REDIS_URL, memoryStore, env.NODE_ENV !== "production")
+  : null;
+const activeStore: RateLimitStore = redisStore ?? memoryStore;
 
 const defaultKeyGenerator = (req: Request) =>
   req.user?.id ?? req.ip ?? req.socket.remoteAddress ?? "unknown";
@@ -64,10 +173,29 @@ export function createRateLimit(options: RateLimitOptions) {
   const max = options.max ?? env.RATE_LIMIT_MAX;
   const keyGenerator = options.keyGenerator ?? defaultKeyGenerator;
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const rawKey = keyGenerator(req);
     const key = `${options.namespace}:${rawKey}`;
-    const bucket = memoryStore.hit(key, windowMs);
+    let bucket: Bucket;
+
+    try {
+      bucket = await activeStore.hit(key, windowMs);
+    } catch (error) {
+      console.error("rate_limit.store_unavailable", {
+        namespace: options.namespace,
+        method: req.method,
+        path: req.originalUrl,
+        message: error instanceof Error ? error.message : "unknown"
+      });
+      res.status(503).json({
+        error: {
+          code: "RATE_LIMIT_STORE_UNAVAILABLE",
+          message: "Rate limit store unavailable"
+        }
+      });
+      return;
+    }
+
     const remaining = Math.max(max - bucket.count, 0);
     const retryAfterSeconds = Math.max(Math.ceil((bucket.resetAt - Date.now()) / 1000), 1);
 
@@ -97,6 +225,10 @@ export function createRateLimit(options: RateLimitOptions) {
 
     next();
   };
+}
+
+export async function closeRateLimitStore() {
+  await redisStore?.close();
 }
 
 export const generalRateLimit = createRateLimit({

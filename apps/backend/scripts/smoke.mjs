@@ -45,13 +45,22 @@ const token = auth.token;
 const brand = await request("/settings/brand-profile", { token });
 console.log("brand profile", brand.data.ownerName || "configured");
 
-const telegramDisabled = await request("/telegram/webhook", {
-  method: "POST",
-  body: {}
-});
+const telegramSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
-if (telegramDisabled.ok !== true) {
-  throw new Error("Telegram disabled fallback did not return ok");
+if (telegramSecret) {
+  const telegramWebhook = await request("/telegram/webhook", {
+    method: "POST",
+    headers: {
+      "x-telegram-bot-api-secret-token": telegramSecret
+    },
+    body: {}
+  });
+
+  if (telegramWebhook.ok !== true) {
+    throw new Error("Telegram webhook test did not return ok");
+  }
+} else {
+  console.log("telegram webhook test skipped: TELEGRAM_WEBHOOK_SECRET missing");
 }
 
 const agents = await request("/agents", { token });

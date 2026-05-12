@@ -156,8 +156,8 @@ export function getSafeStartupConfig() {
     rateLimit: {
       windowMs: env.RATE_LIMIT_WINDOW_MS,
       max: env.RATE_LIMIT_MAX,
-      store: "memory",
-      redisReady: false
+      store: env.REDIS_URL ? "redis" : "memory",
+      redisFallback: env.NODE_ENV !== "production"
     },
     ai: {
       provider: aiProvider,
