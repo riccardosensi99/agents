@@ -52,6 +52,7 @@ Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon,
 | Prepare sprite sheet pipeline for future artists/assets | Medium | frontend, chore | README documenta direzioni, stati e percorso di sostituzione con asset originali futuri. |
 | Add workstation interaction animations | Medium | frontend | Working/thinking hanno interazioni con desk/monitor. |
 | Add layered clothing/accessories system | Low | frontend | Struttura per outfit/accessori configurabili. |
+| Add avatar customization support | Medium | frontend | Custom agents scelgono archetype, palette e visual role. |
 | Improve Agent Room immersion and NPC feeling | Low | frontend | Solo refinements mirati, senza nuove feature enterprise. |
 
 ### Sprint 3 - Telegram Approvals
@@ -104,16 +105,6 @@ Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon,
 ## Active Backlog
 
 Questi ticket restano aperti perche richiedono verifica runtime, hardening o implementazioni non ancora complete.
-
-## Sprint 2B - Agent Avatars & Visual Identity
-
-Obiettivo: trasformare gli avatar agenti da placeholder a mini character RPG originali, senza asset o design protetti.
-
-Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon, asset Nintendo/Game Freak, design riconoscibili o palette copiate.
-
-| Ticket | Priorita | Labels | Acceptance criteria |
-| --- | --- | --- | --- |
-| Add avatar customization support | Medium | frontend | Custom agents scelgono archetype, palette e visual role. |
 
 ## Production Hardening Backlog
 

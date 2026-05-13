@@ -9,6 +9,7 @@ type AvatarHeadLayer = "none" | "antenna" | "cap" | "headset" | "visor" | "halo"
 type AvatarShoulderLayer = "none" | "pads" | "glow" | "strap";
 type AvatarToolLayer = "none" | "tablet" | "wristpad" | "terminal";
 type AvatarBadgeLayer = "none" | "core" | "stripe" | "dot";
+type AvatarVisualRole = "operator" | "builder" | "analyst" | "coordinator";
 
 type AvatarAccessoryLayers = {
   head: AvatarHeadLayer;
@@ -108,12 +109,19 @@ const profiles: Record<BuiltInAgentVisualKey, AgentVisualProfile> = {
 };
 
 const customPalettes = [
-  { accent: 0x34d399, accentAlt: 0xa7f3d0, dark: 0x064e3b, trim: 0x0f766e, label: "#d1fae5" },
-  { accent: 0xf472b6, accentAlt: 0xfbcfe8, dark: 0x831843, trim: 0xbe185d, label: "#fce7f3" },
-  { accent: 0x60a5fa, accentAlt: 0xbfdbfe, dark: 0x1e3a8a, trim: 0x2563eb, label: "#dbeafe" },
-  { accent: 0xfbbf24, accentAlt: 0xfef3c7, dark: 0x78350f, trim: 0xd97706, label: "#fef3c7" },
-  { accent: 0xc084fc, accentAlt: 0xe9d5ff, dark: 0x581c87, trim: 0x9333ea, label: "#f3e8ff" }
+  { key: "mint", accent: 0x34d399, accentAlt: 0xa7f3d0, dark: 0x064e3b, trim: 0x0f766e, label: "#d1fae5" },
+  { key: "rose", accent: 0xf472b6, accentAlt: 0xfbcfe8, dark: 0x831843, trim: 0xbe185d, label: "#fce7f3" },
+  { key: "blue", accent: 0x60a5fa, accentAlt: 0xbfdbfe, dark: 0x1e3a8a, trim: 0x2563eb, label: "#dbeafe" },
+  { key: "amber", accent: 0xfbbf24, accentAlt: 0xfef3c7, dark: 0x78350f, trim: 0xd97706, label: "#fef3c7" },
+  { key: "violet", accent: 0xc084fc, accentAlt: 0xe9d5ff, dark: 0x581c87, trim: 0x9333ea, label: "#f3e8ff" }
 ] as const;
+
+const roleAccessories: Record<AvatarVisualRole, AvatarAccessoryLayers> = {
+  operator: { head: "headset", shoulders: "pads", tool: "tablet", badge: "core" },
+  builder: { head: "cap", shoulders: "strap", tool: "terminal", badge: "stripe" },
+  analyst: { head: "visor", shoulders: "glow", tool: "wristpad", badge: "dot" },
+  coordinator: { head: "antenna", shoulders: "pads", tool: "tablet", badge: "stripe" }
+};
 
 const textureKey = (key: string, direction: GeneratedDirection, mode: GeneratedMode, frame: number) =>
   `agent-${key}-${direction}-${mode}-${frame}`;
@@ -432,17 +440,21 @@ function profileForAgent(agent: Agent): AgentVisualProfile {
     return profiles[builtInKey as BuiltInAgentVisualKey];
   }
 
-  const hash = hashString(`${agent.id}:${agent.slug}:${agent.avatarType}:${agent.name}`);
-  const palette = customPalettes[hash % customPalettes.length] ?? customPalettes[0];
-  const accessories = customAccessoryLayers(hash);
+  const visualConfig = avatarVisualConfig(agent.config);
+  const visualRole = visualConfig.role;
+  const visualHash = hashString(
+    `${agent.id}:${agent.slug}:${agent.avatarType}:${agent.name}:${visualConfig.paletteKey ?? "auto"}:${visualRole ?? "auto"}`
+  );
+  const palette = customPaletteForKey(visualConfig.paletteKey) ?? customPalettes[visualHash % customPalettes.length] ?? customPalettes[0];
+  const accessories = visualRole ? roleAccessories[visualRole] : customAccessoryLayers(visualHash);
 
   return {
-    key: `custom-${hash.toString(36)}`,
+    key: `custom-${visualHash.toString(36)}`,
     archetype: "custom",
     scale: 0.98,
     width: 74,
     height: 86,
-    speed: 88 + (hash % 26),
+    speed: speedForRole(visualRole, visualHash),
     accent: palette.accent,
     accentAlt: palette.accentAlt,
     dark: palette.dark,
@@ -454,6 +466,43 @@ function profileForAgent(agent: Agent): AgentVisualProfile {
     interactiveHeight: 90,
     accessories
   };
+}
+
+function avatarVisualConfig(config: Agent["config"]) {
+  const record = asRecord(config);
+  const avatarVisual = asRecord(record.avatarVisual);
+  const paletteKey = typeof avatarVisual.palette === "string" ? avatarVisual.palette : undefined;
+  const role = isAvatarVisualRole(avatarVisual.role) ? avatarVisual.role : undefined;
+
+  return { paletteKey, role };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function isAvatarVisualRole(value: unknown): value is AvatarVisualRole {
+  return value === "operator" || value === "builder" || value === "analyst" || value === "coordinator";
+}
+
+function customPaletteForKey(key: string | undefined) {
+  return customPalettes.find((palette) => palette.key === key);
+}
+
+function speedForRole(role: AvatarVisualRole | undefined, hash: number) {
+  if (role === "builder") {
+    return 82;
+  }
+
+  if (role === "analyst") {
+    return 94;
+  }
+
+  if (role === "coordinator") {
+    return 76;
+  }
+
+  return 88 + (hash % 26);
 }
 
 function customAccessoryLayers(hash: number): AvatarAccessoryLayers {
