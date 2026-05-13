@@ -21,6 +21,11 @@ type Props = {
 
 type FieldErrors = Partial<Record<"name" | "slug" | "role" | "description" | "avatarType" | "configJson", string | undefined>>;
 
+type AvatarPaletteKey = "mint" | "rose" | "blue" | "amber" | "violet";
+type AvatarVisualRole = "operator" | "builder" | "analyst" | "coordinator";
+
+const customAvatarType = "custom-operator";
+
 const avatarOptions = [
   {
     value: "instaspark",
@@ -41,11 +46,26 @@ const avatarOptions = [
     icon: ShieldCheck
   },
   {
-    value: "custom-operator",
+    value: customAvatarType,
     label: "Custom fallback",
     description: "Uses safe generated fallback",
     icon: Bot
   }
+];
+
+const avatarPaletteOptions: Array<{ value: AvatarPaletteKey; label: string; swatch: string; accent: string }> = [
+  { value: "mint", label: "Mint", swatch: "bg-emerald-300", accent: "border-emerald-300/60" },
+  { value: "rose", label: "Rose", swatch: "bg-pink-300", accent: "border-pink-300/60" },
+  { value: "blue", label: "Blue", swatch: "bg-blue-300", accent: "border-blue-300/60" },
+  { value: "amber", label: "Amber", swatch: "bg-amber-300", accent: "border-amber-300/60" },
+  { value: "violet", label: "Violet", swatch: "bg-violet-300", accent: "border-violet-300/60" }
+];
+
+const avatarRoleOptions: Array<{ value: AvatarVisualRole; label: string }> = [
+  { value: "operator", label: "Operator" },
+  { value: "builder", label: "Builder" },
+  { value: "analyst", label: "Analyst" },
+  { value: "coordinator", label: "Coordinator" }
 ];
 
 const statusOptions: AgentStatus[] = ["idle", "working", "waiting_approval", "error"];
@@ -67,14 +87,27 @@ const slugify = (value: string) =>
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
+const isAvatarPaletteKey = (value: unknown): value is AvatarPaletteKey =>
+  avatarPaletteOptions.some((option) => option.value === value);
+
+const isAvatarVisualRole = (value: unknown): value is AvatarVisualRole =>
+  avatarRoleOptions.some((option) => option.value === value);
+
 export function AgentForm({ agent, submitLabel, loading = false, error, onSubmit }: Props) {
   const initialConfig = useMemo(() => asRecord(agent?.config), [agent]);
+  const initialAvatarVisual = useMemo(() => asRecord(initialConfig.avatarVisual), [initialConfig]);
   const [name, setName] = useState(agent?.name ?? "");
   const [slug, setSlug] = useState(agent?.slug ?? "");
   const [role, setRole] = useState(agent?.role ?? "");
   const [description, setDescription] = useState(agent?.description ?? "");
   const [status, setStatus] = useState<AgentStatus>(agent?.status ?? "idle");
-  const [avatarType, setAvatarType] = useState(agent?.avatarType ?? "custom-operator");
+  const [avatarType, setAvatarType] = useState(agent?.avatarType ?? customAvatarType);
+  const [avatarPalette, setAvatarPalette] = useState<AvatarPaletteKey>(
+    isAvatarPaletteKey(initialAvatarVisual.palette) ? initialAvatarVisual.palette : "mint"
+  );
+  const [avatarVisualRole, setAvatarVisualRole] = useState<AvatarVisualRole>(
+    isAvatarVisualRole(initialAvatarVisual.role) ? initialAvatarVisual.role : "operator"
+  );
   const [platformTarget, setPlatformTarget] = useState<Platform | "">(
     (initialConfig.platformTarget as Platform | undefined) ?? ""
   );
@@ -82,7 +115,9 @@ export function AgentForm({ agent, submitLabel, loading = false, error, onSubmit
   const [configJson, setConfigJson] = useState(
     JSON.stringify(
       Object.fromEntries(
-        Object.entries(initialConfig).filter(([key]) => key !== "platformTarget" && key !== "basePrompt")
+        Object.entries(initialConfig).filter(
+          ([key]) => key !== "platformTarget" && key !== "basePrompt" && key !== "avatarVisual"
+        )
       ),
       null,
       2
@@ -145,8 +180,16 @@ export function AgentForm({ agent, submitLabel, loading = false, error, onSubmit
     }
 
     const extraConfig = JSON.parse(configJson || "{}") as Record<string, unknown>;
+    const avatarVisual =
+      avatarType === customAvatarType
+        ? {
+            palette: avatarPalette,
+            role: avatarVisualRole
+          }
+        : undefined;
     const config = {
       ...extraConfig,
+      ...(avatarVisual ? { avatarVisual } : {}),
       ...(platformTarget ? { platformTarget } : {}),
       ...(basePrompt.trim() ? { basePrompt: basePrompt.trim() } : {})
     };
@@ -307,6 +350,50 @@ export function AgentForm({ agent, submitLabel, loading = false, error, onSubmit
         </div>
         <FieldError message={fieldErrors.avatarType} />
       </div>
+
+      {avatarType === customAvatarType ? (
+        <div className="grid gap-3 rounded-xl border border-white/10 bg-slate-950/35 p-3">
+          <div className="grid gap-2">
+            <p className="text-xs text-slate-500">Custom palette</p>
+            <div className="flex flex-wrap gap-2">
+              {avatarPaletteOptions.map((option) => {
+                const selected = avatarPalette === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    title={option.label}
+                    onClick={() => setAvatarPalette(option.value)}
+                    className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-xs font-medium transition ${
+                      selected
+                        ? `${option.accent} bg-white/10 text-white`
+                        : "border-white/10 bg-slate-950/40 text-slate-400 hover:bg-white/8"
+                    }`}
+                  >
+                    <span className={`h-3 w-3 rounded-full ${option.swatch}`} />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <label className="grid gap-1 text-xs text-slate-500">
+            Visual role
+            <select
+              value={avatarVisualRole}
+              onChange={(event) => setAvatarVisualRole(event.target.value as AvatarVisualRole)}
+              className="h-11 rounded-xl border border-white/10 bg-slate-950/50 px-3 text-sm text-white outline-none focus:border-cyan-300/45"
+            >
+              {avatarRoleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
 
       <label className="grid gap-1 text-xs text-slate-500">
         Base prompt / agent instruction

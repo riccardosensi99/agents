@@ -187,7 +187,7 @@ Gli agenti custom usano `avatarType` selezionabile. Se l'Agent Room non ha ancor
 
 La vista `Agent Room` trasforma gli agenti in creature companion originali dentro una control room 2D Phaser. Non usa asset esterni e non contiene nomi, sprite o elementi coperti da copyright.
 
-Gli avatar Phaser sono generati runtime con texture pixel-art originali. Ogni agente supporta direzioni `down`, `up`, `left` e `right`, cicli `idle`/`walk` e stati visuali per working, thinking, error e waiting approval. Gli agenti custom senza sprite dedicato ricevono un fallback deterministico basato su id/slug/avatarType, con palette, silhouette, headgear, spalle, tool e badge coerenti ma non derivati da asset esterni.
+Gli avatar Phaser sono generati runtime con texture pixel-art originali. Ogni agente supporta direzioni `down`, `up`, `left` e `right`, cicli `idle`/`walk` e stati visuali per working, thinking, error e waiting approval. Gli agenti custom senza sprite dedicato ricevono un fallback deterministico basato su id/slug/avatarType e possono salvare `config.avatarVisual` per scegliere palette e ruolo visuale; se non configurato, palette, silhouette, headgear, spalle, tool e badge restano derivati in modo stabile senza asset esterni.
 
 Quando InstaSpark, LinkForge o Overseer sono fermi alla propria postazione, la stanza accende desk, monitor, tastiere e flussi dati dedicati per rendere visibili stati working/thinking senza introdurre asset esterni.
 
@@ -232,7 +232,7 @@ Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibi
 
 1. Crea l'agente via `POST /api/agents` o aggiungilo al seed Prisma.
 2. Assegna un `slug` e un `avatarType` originali.
-3. Se non esiste uno sprite dedicato, il fallback custom genera automaticamente una variante originale e stabile.
+3. Per agenti custom, usa il form `Agents` per scegliere palette e ruolo visuale oppure imposta `config.avatarVisual` con `palette` e `role`.
 4. Se serve un comportamento dedicato, estendi `agentMovement.ts` con una nuova destinazione o velocita.
 5. Il frontend lo mostrera automaticamente perche la stanza usa `GET /api/agents`.
 
