@@ -189,6 +189,8 @@ La vista `Agent Room` trasforma gli agenti in creature companion originali dentr
 
 Gli avatar Phaser sono generati runtime con texture pixel-art originali. Ogni agente supporta direzioni `down`, `up`, `left` e `right`, cicli `idle`/`walk` e stati visuali per working, thinking, error e waiting approval. Gli agenti custom senza sprite dedicato ricevono un fallback deterministico basato su id/slug/avatarType, con palette e silhouette coerenti ma non derivate da asset esterni.
 
+Quando InstaSpark, LinkForge o Overseer sono fermi alla propria postazione, la stanza accende desk, monitor, tastiere e flussi dati dedicati per rendere visibili stati working/thinking senza introdurre asset esterni.
+
 Percorsi:
 
 - Dev server: `http://localhost:5173/agent-room`

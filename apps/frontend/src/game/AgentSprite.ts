@@ -218,6 +218,10 @@ export class AgentSprite {
     this.mode = mode;
   }
 
+  faceDirection(direction: GeneratedDirection) {
+    this.setDirection(direction);
+  }
+
   update(time: number, deltaMs: number) {
     const moving = this.advanceTowardsTarget(deltaMs);
     const visualMode: RoomAgentMode = moving ? "walk" : this.mode;

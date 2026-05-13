@@ -24,6 +24,19 @@ type AmbientPulse = {
   scaleAmplitude?: number;
 };
 
+type WorkstationKey = "socialDesk" | "devDesk" | "supervisorDesk";
+
+type WorkstationInteraction = {
+  desk: RoomObject;
+  screenGlow: Phaser.GameObjects.Rectangle;
+  keyboardGlow: Phaser.GameObjects.Rectangle;
+  keycaps: Phaser.GameObjects.Rectangle[];
+  dataDots: Phaser.GameObjects.Ellipse[];
+  taskBeam: Phaser.GameObjects.Rectangle;
+  activity: number;
+  phase: number;
+};
+
 export class AgentRoomScene extends Phaser.Scene {
   private callbacks: AgentRoomSceneCallbacks;
   private snapshot: AgentRoomSnapshot = { agents: [], tasks: [], drafts: [] };
@@ -36,6 +49,7 @@ export class AgentRoomScene extends Phaser.Scene {
   private foregroundLayer?: Phaser.GameObjects.Graphics;
   private ambientObjects: Phaser.GameObjects.GameObject[] = [];
   private ambientPulses: AmbientPulse[] = [];
+  private workstationInteractions = new Map<WorkstationKey, WorkstationInteraction>();
   private notice: Phaser.GameObjects.Text | null = null;
   private taskStatus = new Map<string, string>();
   private draftStatus = new Map<string, string>();
@@ -84,17 +98,25 @@ export class AgentRoomScene extends Phaser.Scene {
       }
 
       const intent = getAgentIntent(agent, this.snapshot.tasks, this.snapshot.drafts);
-      const hasTarget = Boolean(sprite.getTarget());
+      let hasTarget = Boolean(sprite.getTarget());
 
       if (!hasTarget && time >= (this.nextDecisionAt.get(agent.id) ?? 0)) {
         const target = this.pickTarget(agent, intent);
         sprite.setTarget(target);
+        hasTarget = Boolean(sprite.getTarget());
         this.nextDecisionAt.set(agent.id, time + this.decisionDelayForAgent(agent, intent, Boolean(target)));
       }
 
-      sprite.setMode(modeForIntent(intent, Boolean(sprite.getTarget())));
+      const mode = modeForIntent(intent, hasTarget);
+      if (this.isAgentUsingWorkstation(agent, intent, sprite)) {
+        sprite.faceDirection("up");
+      }
+
+      sprite.setMode(mode);
       sprite.update(time, delta);
     }
+
+    this.updateWorkstationInteractions(time, delta);
   }
 
   shutdown() {
@@ -145,6 +167,44 @@ export class AgentRoomScene extends Phaser.Scene {
     }
 
     return Phaser.Math.Between(4200, 7200);
+  }
+
+  private workstationKeyForAgent(agent: Agent, intent: RoomAgentIntent): WorkstationKey | null {
+    if (intent === "go_workstation" && agent.slug === "instaspark") {
+      return "socialDesk";
+    }
+
+    if (intent === "go_workstation" && agent.slug === "linkforge") {
+      return "devDesk";
+    }
+
+    if (intent === "supervise" && agent.slug === "overseer") {
+      return "supervisorDesk";
+    }
+
+    return null;
+  }
+
+  private isAgentUsingWorkstation(agent: Agent, intent: RoomAgentIntent, sprite: AgentSprite) {
+    const workstationKey = this.workstationKeyForAgent(agent, intent);
+    if (!workstationKey || sprite.getTarget()) {
+      return false;
+    }
+
+    const position = sprite.getPosition();
+    if (workstationKey === "socialDesk") {
+      return this.pointIsInsideZone(position, this.zones.socialArea);
+    }
+
+    if (workstationKey === "devDesk") {
+      return this.pointIsInsideZone(position, this.zones.devStation);
+    }
+
+    return this.pointIsInsideZone(position, this.zones.supervisorArea);
+  }
+
+  private pointIsInsideZone(point: RoomPoint, zone: { x: number; y: number; width: number; height: number }) {
+    return point.x >= zone.x && point.x <= zone.x + zone.width && point.y >= zone.y && point.y <= zone.y + zone.height;
   }
 
   private syncSprites() {
@@ -381,6 +441,9 @@ export class AgentRoomScene extends Phaser.Scene {
     this.addMonitorLife(objects.socialDesk, true);
     this.addMonitorLife(objects.devDesk, true);
     this.addMonitorLife(objects.supervisorDesk, false);
+    this.addWorkstationInteractionLife("socialDesk", objects.socialDesk, true);
+    this.addWorkstationInteractionLife("devDesk", objects.devDesk, true);
+    this.addWorkstationInteractionLife("supervisorDesk", objects.supervisorDesk, false);
     this.addServerLights();
     this.addCoffeeSteam(objects.coffeeBar);
     this.addApprovalSparkles(objects.approvalBoardObject);
@@ -416,6 +479,46 @@ export class AgentRoomScene extends Phaser.Scene {
         phase: monitorIndex * 0.9,
         scaleAmplitude: 0.12
       });
+    });
+  }
+
+  private addWorkstationInteractionLife(key: WorkstationKey, desk: RoomObject, doubleMonitor: boolean) {
+    const screenGlow = this.add
+      .rectangle(desk.x + desk.width / 2, desk.y + 32, doubleMonitor ? 150 : 164, 58, desk.accent, 0)
+      .setDepth(Math.round(desk.y + 61))
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const keyboardGlow = this.add
+      .rectangle(desk.x + desk.width / 2, desk.y + 103, 116, 15, desk.accent, 0)
+      .setDepth(Math.round(desk.y + desk.height - 4))
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const taskBeam = this.add
+      .rectangle(desk.x + desk.width / 2, desk.y + 66, desk.width * 0.76, 62, desk.accent, 0)
+      .setDepth(Math.round(desk.y + desk.height - 18))
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    const keycaps = [0, 1, 2, 3, 4].map((index) =>
+      this.add
+        .rectangle(desk.x + desk.width / 2 - 44 + index * 22, desk.y + 101, 12, 4, desk.accent, 0)
+        .setDepth(Math.round(desk.y + desk.height - 2))
+        .setBlendMode(Phaser.BlendModes.ADD)
+    );
+    const dataDots = [0, 1, 2, 3].map((index) =>
+      this.add
+        .ellipse(desk.x + desk.width / 2 - 46 + index * 30, desk.y + 26, 7, 7, desk.accent, 0)
+        .setDepth(Math.round(desk.y + 63))
+        .setBlendMode(Phaser.BlendModes.ADD)
+    );
+
+    this.ambientObjects.push(screenGlow, keyboardGlow, taskBeam, ...keycaps, ...dataDots);
+    this.workstationInteractions.set(key, {
+      desk,
+      screenGlow,
+      keyboardGlow,
+      keycaps,
+      dataDots,
+      taskBeam,
+      activity: 0,
+      phase: key === "socialDesk" ? 0.2 : key === "devDesk" ? 1.4 : 2.7
     });
   }
 
@@ -531,6 +634,60 @@ export class AgentRoomScene extends Phaser.Scene {
         pulse.object.setScale(scale, scale);
       }
     }
+  }
+
+  private updateWorkstationInteractions(time: number, deltaMs: number) {
+    const blend = Phaser.Math.Clamp(deltaMs / 220, 0, 1);
+
+    for (const [key, interaction] of this.workstationInteractions.entries()) {
+      const targetActivity = this.activityForWorkstation(key);
+      interaction.activity = Phaser.Math.Linear(interaction.activity, targetActivity, blend);
+
+      const activity = interaction.activity;
+      const wave = (Math.sin(time / 180 + interaction.phase) + 1) / 2;
+      const slowWave = (Math.sin(time / 540 + interaction.phase) + 1) / 2;
+
+      interaction.screenGlow.setAlpha(activity * (0.1 + wave * 0.22));
+      interaction.screenGlow.setScale(1 + activity * (0.02 + slowWave * 0.045), 1 + activity * (0.03 + wave * 0.025));
+
+      interaction.keyboardGlow.setAlpha(activity * (0.08 + wave * 0.18));
+      interaction.keyboardGlow.setScale(1 + activity * wave * 0.08, 1);
+
+      interaction.taskBeam.setAlpha(activity * (0.035 + slowWave * 0.09));
+      interaction.taskBeam.setScale(1 + activity * slowWave * 0.04, 1 + activity * wave * 0.08);
+
+      interaction.keycaps.forEach((keycap, index) => {
+        const keyPulse = (Math.sin(time / (94 + index * 11) + interaction.phase + index) + 1) / 2;
+        keycap.setAlpha(activity * (0.16 + keyPulse * 0.58));
+        keycap.setY(interaction.desk.y + 101 + keyPulse * 2);
+      });
+
+      interaction.dataDots.forEach((dot, index) => {
+        const dotPulse = (Math.sin(time / (160 + index * 24) + interaction.phase + index * 0.7) + 1) / 2;
+        dot.setAlpha(activity * (0.12 + dotPulse * 0.62));
+        dot.setPosition(
+          interaction.desk.x + interaction.desk.width / 2 - 46 + index * 30,
+          interaction.desk.y + 28 - dotPulse * 10
+        );
+        dot.setScale(0.86 + dotPulse * 0.42);
+      });
+    }
+  }
+
+  private activityForWorkstation(key: WorkstationKey) {
+    for (const agent of this.snapshot.agents) {
+      const sprite = this.sprites.get(agent.id);
+      if (!sprite) {
+        continue;
+      }
+
+      const intent = getAgentIntent(agent, this.snapshot.tasks, this.snapshot.drafts);
+      if (this.workstationKeyForAgent(agent, intent) === key && this.isAgentUsingWorkstation(agent, intent, sprite)) {
+        return key === "supervisorDesk" ? 0.86 : 1;
+      }
+    }
+
+    return 0;
   }
 
   private drawMainScreen(graphics: Phaser.GameObjects.Graphics, screen: RoomObject) {
@@ -789,6 +946,7 @@ export class AgentRoomScene extends Phaser.Scene {
     }
     this.ambientObjects = [];
     this.ambientPulses = [];
+    this.workstationInteractions.clear();
   }
 
 }
