@@ -50,6 +50,7 @@ Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon,
 | Add avatar rendering depth improvements | Medium | frontend | Depth e occlusion coerenti con la stanza. |
 | Add fallback avatar generator for custom agents | High | frontend | Custom agent senza sprite non rompe Agent Room. |
 | Prepare sprite sheet pipeline for future artists/assets | Medium | frontend, chore | README documenta direzioni, stati e percorso di sostituzione con asset originali futuri. |
+| Add workstation interaction animations | Medium | frontend | Working/thinking hanno interazioni con desk/monitor. |
 | Improve Agent Room immersion and NPC feeling | Low | frontend | Solo refinements mirati, senza nuove feature enterprise. |
 
 ### Sprint 3 - Telegram Approvals
@@ -111,7 +112,6 @@ Guardrail: non usare Pokemon reali, trainer Pokemon reali, sprite sheet Pokemon,
 
 | Ticket | Priorita | Labels | Acceptance criteria |
 | --- | --- | --- | --- |
-| Add workstation interaction animations | Medium | frontend | Working/thinking hanno interazioni con desk/monitor. |
 | Add layered clothing/accessories system | Low | frontend | Struttura per outfit/accessori configurabili. |
 | Add avatar customization support | Medium | frontend | Custom agents scelgono archetype, palette e visual role. |
 
