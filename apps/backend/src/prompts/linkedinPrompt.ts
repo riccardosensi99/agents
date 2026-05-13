@@ -4,6 +4,7 @@ import { buildBrandContext } from "./brandContext";
 export function buildLinkedInPrompt(params: {
   taskPrompt: string;
   brandProfile: BrandProfile | null;
+  memoryContext?: string | undefined;
 }) {
   return {
     system: [
@@ -14,6 +15,8 @@ export function buildLinkedInPrompt(params: {
     ].join("\n"),
     prompt: [
       buildBrandContext(params.brandProfile),
+      "",
+      params.memoryContext ?? "EXPERIENCE MEMORY\nNo founder memory was provided.",
       "",
       "TASK",
       params.taskPrompt,

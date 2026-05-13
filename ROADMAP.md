@@ -22,6 +22,7 @@ Ticket gia coperti dal codice/documentazione attuale e chiusi nel backlog locale
 | Verify Docker production build | High | devops, production | `docker compose up --build` parte; frontend/backend rispondono; migrations applicate. |
 | Verify env validation in production mode | High | security, production | `NODE_ENV=production` fallisce senza secret obbligatori e placeholder insicuri. |
 | Improve frontend success/error feedback consistency | Medium | frontend | Operazioni importanti mostrano loading, success/error toast e messaggi chiari. |
+| Add agent memory and experience knowledge system | High | feature, backend, frontend | Memory CRUD, seed founder/dev freelance, prompt injection for agents/Overseer, smoke coverage. |
 
 ### Sprint 2 - Agent Management UI
 

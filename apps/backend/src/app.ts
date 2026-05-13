@@ -8,6 +8,7 @@ import { authRateLimit, generalRateLimit } from "./middleware/rateLimit";
 import { agentRoutes } from "./modules/agents/agent.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { draftRoutes } from "./modules/drafts/draft.routes";
+import { memoryRoutes } from "./modules/memory/memory.routes";
 import { settingsRoutes } from "./modules/settings/settings.routes";
 import { socialRoutes } from "./modules/social/social.routes";
 import { systemRoutes } from "./modules/system/system.routes";
@@ -36,6 +37,7 @@ export function createApp() {
   app.use("/api/agents", authenticate, agentRoutes);
   app.use("/api/tasks", authenticate, taskRoutes);
   app.use("/api/drafts", authenticate, draftRoutes);
+  app.use("/api/memory", authenticate, memoryRoutes);
   app.use("/api/settings", authenticate, settingsRoutes);
   app.use("/api/social", authenticate, socialRoutes);
   app.use("/api/system", authenticate, systemRoutes);

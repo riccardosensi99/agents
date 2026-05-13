@@ -7,9 +7,10 @@ import type { AgentRunContext, GeneratedDraft } from "./types";
 export async function runInstagramAgent(
   prompt: string,
   brandProfile: BrandProfile | null,
-  context: AgentRunContext = {}
+  context: AgentRunContext = {},
+  memoryContext?: string
 ): Promise<GeneratedDraft> {
-  const builtPrompt = buildInstagramPrompt({ taskPrompt: prompt, brandProfile });
+  const builtPrompt = buildInstagramPrompt({ taskPrompt: prompt, brandProfile, memoryContext });
   const generated = await aiClient.generateJson(
     {
       ...builtPrompt,

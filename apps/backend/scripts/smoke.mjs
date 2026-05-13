@@ -45,6 +45,44 @@ const token = auth.token;
 const brand = await request("/settings/brand-profile", { token });
 console.log("brand profile", brand.data.ownerName || "configured");
 
+const smokeMemoryTitle = `Smoke memory ${Date.now()}`;
+const smokeMemory = await request("/memory", {
+  method: "POST",
+  token,
+  body: {
+    title: smokeMemoryTitle,
+    content: "Smoke memory for API CRUD coverage. It should be created, found, updated, and deleted.",
+    type: "LESSON",
+    tags: ["smoke", "api"],
+    importance: 2,
+    source: "smoke"
+  }
+});
+
+const listedSmokeMemories = await request("/memory?tag=smoke", { token });
+
+if (!listedSmokeMemories.data.some((memory) => memory.id === smokeMemory.data.id)) {
+  throw new Error("Memory create/list smoke check failed");
+}
+
+const updatedSmokeMemory = await request(`/memory/${smokeMemory.data.id}`, {
+  method: "PATCH",
+  token,
+  body: {
+    importance: 4,
+    tags: ["smoke", "api", "updated"]
+  }
+});
+
+if (updatedSmokeMemory.data.importance !== 4 || !updatedSmokeMemory.data.tags.includes("updated")) {
+  throw new Error("Memory update smoke check failed");
+}
+
+await request(`/memory/${smokeMemory.data.id}`, {
+  method: "DELETE",
+  token
+});
+
 const telegramSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 if (telegramSecret) {

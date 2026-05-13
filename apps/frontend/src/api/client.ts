@@ -1,4 +1,16 @@
-import type { Agent, BrandProfile, Draft, Notification, Platform, SystemStatus, Task, TaskPriority, User } from "../types/domain";
+import type {
+  Agent,
+  BrandProfile,
+  Draft,
+  MemoryEntry,
+  MemoryType,
+  Notification,
+  Platform,
+  SystemStatus,
+  Task,
+  TaskPriority,
+  User
+} from "../types/domain";
 import {
   debugApi,
   errorFromResponse,
@@ -21,7 +33,7 @@ type AuthEnvelope = {
 
 type RequestOptions = {
   token?: string;
-  method?: "GET" | "POST" | "PATCH" | "PUT";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
 };
 
@@ -33,6 +45,15 @@ export type AgentMutationInput = {
   status?: Agent["status"];
   avatarType: string;
   config?: Record<string, unknown>;
+};
+
+export type MemoryMutationInput = {
+  title: string;
+  content: string;
+  type: MemoryType;
+  tags: string[];
+  importance: number;
+  source: string;
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -117,6 +138,10 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     });
 
     throw errorFromResponse(response.status, payload, path);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return (await parseJson(response, path)) as T;
@@ -283,6 +308,44 @@ export const api = {
       token,
       method: "PUT",
       body
+    });
+  },
+
+  async getMemoryEntries(token: string, filters: { search?: string; type?: MemoryType | ""; tag?: string } = {}) {
+    const params = new URLSearchParams();
+    if (filters.search?.trim()) {
+      params.set("search", filters.search.trim());
+    }
+    if (filters.type) {
+      params.set("type", filters.type);
+    }
+    if (filters.tag?.trim()) {
+      params.set("tag", filters.tag.trim());
+    }
+
+    return requestData<MemoryEntry[]>(`/memory${params.toString() ? `?${params.toString()}` : ""}`, { token });
+  },
+
+  async createMemoryEntry(token: string, body: MemoryMutationInput) {
+    return requestData<MemoryEntry>("/memory", {
+      token,
+      method: "POST",
+      body
+    });
+  },
+
+  async updateMemoryEntry(token: string, id: string, body: Partial<MemoryMutationInput>) {
+    return requestData<MemoryEntry>(`/memory/${id}`, {
+      token,
+      method: "PATCH",
+      body
+    });
+  },
+
+  async deleteMemoryEntry(token: string, id: string) {
+    return request<void>(`/memory/${id}`, {
+      token,
+      method: "DELETE"
     });
   },
 

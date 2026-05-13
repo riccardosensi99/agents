@@ -4,6 +4,7 @@ import { getDefaultBrandProfile } from "../brand/brandProfileService";
 import { runInstagramAgent } from "../agents/instagramAgent";
 import { runLinkedInAgent } from "../agents/linkedinAgent";
 import { reviewDraftWithSupervisor } from "../agents/supervisorAgent";
+import { buildMemoryContext, getRelevantMemories } from "../../modules/memory/memory.service";
 import { createNotification } from "../notifications/notificationService";
 import { notifyTelegramDraftReady } from "../telegram/telegramApprovalService";
 import { createDraftVersion } from "./draftVersionService";
@@ -51,11 +52,18 @@ export async function regenerateDraft(params: {
     agentSlug: "overseer",
     draftId: draft.id
   };
+  const memories = await getRelevantMemories({
+    prompt: revisionPrompt,
+    platform: draft.platform,
+    agentSlug: draft.agent.slug,
+    limit: 8
+  });
+  const memoryContext = buildMemoryContext(memories);
 
   const generated =
     draft.agent.slug === "instaspark"
-      ? await runInstagramAgent(revisionPrompt, brandProfile, agentContext)
-      : await runLinkedInAgent(revisionPrompt, brandProfile, agentContext);
+      ? await runInstagramAgent(revisionPrompt, brandProfile, agentContext, memoryContext)
+      : await runLinkedInAgent(revisionPrompt, brandProfile, agentContext, memoryContext);
 
   const review = await reviewDraftWithSupervisor({
     title: generated.title,
@@ -63,6 +71,7 @@ export async function regenerateDraft(params: {
     platform: draft.platform,
     brandProfile,
     userFeedback: params.comment,
+    memoryContext,
     context: supervisorContext
   });
 
@@ -111,7 +120,8 @@ export async function regenerateDraft(params: {
             draftId: draft.id,
             version: nextVersion,
             generated,
-            supervisorReview: review
+            supervisorReview: review,
+            memoryIds: memories.map((memory) => memory.id)
           }
         }
       });
@@ -121,7 +131,7 @@ export async function regenerateDraft(params: {
           taskId: draft.taskId,
           type: "draft.regenerated",
           message: "Draft regenerated after review feedback",
-          meta: { draftId: draft.id, version: nextVersion, action: params.action }
+          meta: { draftId: draft.id, version: nextVersion, action: params.action, memoryIds: memories.map((memory) => memory.id) }
         }
       });
     }
@@ -135,7 +145,7 @@ export async function regenerateDraft(params: {
       data: {
         agentId: draft.agentId,
         message: "Draft regenerated",
-        meta: { draftId: draft.id, version: nextVersion, action: params.action }
+        meta: { draftId: draft.id, version: nextVersion, action: params.action, memoryIds: memories.map((memory) => memory.id) }
       }
     });
 

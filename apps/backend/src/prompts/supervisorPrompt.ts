@@ -8,6 +8,7 @@ export function buildSupervisorPrompt(params: {
   platform: Platform;
   brandProfile: BrandProfile | null;
   userFeedback?: string | undefined;
+  memoryContext?: string;
 }) {
   return {
     system: [
@@ -18,6 +19,8 @@ export function buildSupervisorPrompt(params: {
     prompt: [
       buildBrandContext(params.brandProfile),
       "",
+      params.memoryContext ?? "EXPERIENCE MEMORY\nNo founder memory was provided.",
+      "",
       `PLATFORM: ${params.platform}`,
       `TITLE: ${params.title}`,
       params.userFeedback ? `USER REVISION FEEDBACK: ${params.userFeedback}` : "",
@@ -25,6 +28,7 @@ export function buildSupervisorPrompt(params: {
       params.content,
       "",
       "Evaluate this draft.",
+      "Check that the draft uses founder experience, opinions and practical specificity from memory when available.",
       "Use recommendedAction=revise if the draft is usable but needs concrete changes.",
       "Use recommendedAction=reject if it is risky, off-brand, spammy, or too generic.",
       "",

@@ -128,9 +128,10 @@ La piattaforma ora e pensata per uso quotidiano:
 2. Crea un task da `Tasks` o dal dettaglio agente.
 3. Esegui il task manualmente o abilita lo scheduler via env.
 4. InstaSpark o LinkForge genera una bozza con output JSON validato.
-5. Overseer valuta la bozza con `qualityScore`, `riskLevel`, `feedback` e `recommendedAction`.
-6. La bozza resta in `Approvals`.
-7. Puoi approvare, rifiutare, modificare, chiedere revisione o rigenerare.
+5. Il sistema Experience Memory recupera esperienze/opinioni rilevanti e le inietta nei prompt.
+6. Overseer valuta la bozza con `qualityScore`, `riskLevel`, `feedback` e `recommendedAction`.
+7. La bozza resta in `Approvals`.
+8. Puoi approvare, rifiutare, modificare, chiedere revisione o rigenerare.
 
 Nessun flusso pubblica su Instagram o LinkedIn. Le future API social dovranno partire dalle bozze approvate.
 
@@ -171,6 +172,12 @@ Campi principali:
 - parole/frasi da evitare
 
 Questo contesto viene passato a InstaSpark, LinkForge e Overseer.
+
+## Experience Memory
+
+La pagina `Memory` gestisce esperienze, opinioni, lezioni, workflow, stack, casi cliente, errori, deploy e content examples del founder. Le memorie sono salvate in `MemoryEntry` con `type`, `tags`, `importance` e `source`.
+
+Prima di generare o rigenerare bozze, il backend seleziona fino a 8 memorie rilevanti tramite match semplice su tag, piattaforma, agente e termini del prompt. Le memorie vengono aggiunte al prompt di InstaSpark/LinkForge e al controllo Overseer per ridurre output generici e mantenere tono/opinioni reali. Non usa embeddings o vector DB.
 
 ## Gestione agenti
 
@@ -256,6 +263,10 @@ Mantieni nomi e design originali: niente asset protetti o personaggi riconoscibi
 - `POST /api/drafts/:id/regenerate`
 - `POST /api/telegram/webhook`
 - `POST /api/social/linkedin/drafts/:id/prepare`
+- `GET /api/memory`
+- `POST /api/memory`
+- `PATCH /api/memory/:id`
+- `DELETE /api/memory/:id`
 - `GET /api/settings/brand-profile`
 - `PUT /api/settings/brand-profile`
 - `GET /api/system/status`

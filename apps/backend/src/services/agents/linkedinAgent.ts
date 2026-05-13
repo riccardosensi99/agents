@@ -7,9 +7,10 @@ import type { AgentRunContext, GeneratedDraft } from "./types";
 export async function runLinkedInAgent(
   prompt: string,
   brandProfile: BrandProfile | null,
-  context: AgentRunContext = {}
+  context: AgentRunContext = {},
+  memoryContext?: string
 ): Promise<GeneratedDraft> {
-  const builtPrompt = buildLinkedInPrompt({ taskPrompt: prompt, brandProfile });
+  const builtPrompt = buildLinkedInPrompt({ taskPrompt: prompt, brandProfile, memoryContext });
   const generated = await aiClient.generateJson(
     {
       ...builtPrompt,
