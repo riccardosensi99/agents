@@ -187,7 +187,7 @@ Gli agenti custom usano `avatarType` selezionabile. Se l'Agent Room non ha ancor
 
 La vista `Agent Room` trasforma gli agenti in creature companion originali dentro una control room 2D Phaser. Non usa asset esterni e non contiene nomi, sprite o elementi coperti da copyright.
 
-Gli avatar Phaser sono generati runtime con texture pixel-art originali. Ogni agente supporta direzioni `down`, `up`, `left` e `right`, cicli `idle`/`walk` e stati visuali per working, thinking, error e waiting approval. Gli agenti custom senza sprite dedicato ricevono un fallback deterministico basato su id/slug/avatarType, con palette e silhouette coerenti ma non derivate da asset esterni.
+Gli avatar Phaser sono generati runtime con texture pixel-art originali. Ogni agente supporta direzioni `down`, `up`, `left` e `right`, cicli `idle`/`walk` e stati visuali per working, thinking, error e waiting approval. Gli agenti custom senza sprite dedicato ricevono un fallback deterministico basato su id/slug/avatarType, con palette, silhouette, headgear, spalle, tool e badge coerenti ma non derivati da asset esterni.
 
 Quando InstaSpark, LinkForge o Overseer sono fermi alla propria postazione, la stanza accende desk, monitor, tastiere e flussi dati dedicati per rendere visibili stati working/thinking senza introdurre asset esterni.
 

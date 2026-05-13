@@ -5,6 +5,17 @@ import type { RoomAgentMode, RoomPoint } from "./types";
 type BuiltInAgentVisualKey = "instaspark" | "linkforge" | "overseer";
 type AgentVisualArchetype = BuiltInAgentVisualKey | "custom";
 type GeneratedDirection = "down" | "up" | "right" | "left";
+type AvatarHeadLayer = "none" | "antenna" | "cap" | "headset" | "visor" | "halo";
+type AvatarShoulderLayer = "none" | "pads" | "glow" | "strap";
+type AvatarToolLayer = "none" | "tablet" | "wristpad" | "terminal";
+type AvatarBadgeLayer = "none" | "core" | "stripe" | "dot";
+
+type AvatarAccessoryLayers = {
+  head: AvatarHeadLayer;
+  shoulders: AvatarShoulderLayer;
+  tool: AvatarToolLayer;
+  badge: AvatarBadgeLayer;
+};
 
 type AgentVisualProfile = {
   key: string;
@@ -22,6 +33,7 @@ type AgentVisualProfile = {
   shadowHeight: number;
   interactiveWidth: number;
   interactiveHeight: number;
+  accessories: AvatarAccessoryLayers;
 };
 
 type GeneratedMode = RoomAgentMode;
@@ -54,7 +66,8 @@ const profiles: Record<BuiltInAgentVisualKey, AgentVisualProfile> = {
     shadowWidth: 36,
     shadowHeight: 11,
     interactiveWidth: 72,
-    interactiveHeight: 88
+    interactiveHeight: 88,
+    accessories: { head: "antenna", shoulders: "glow", tool: "terminal", badge: "core" }
   },
   linkforge: {
     key: "linkforge",
@@ -71,7 +84,8 @@ const profiles: Record<BuiltInAgentVisualKey, AgentVisualProfile> = {
     shadowWidth: 42,
     shadowHeight: 12,
     interactiveWidth: 74,
-    interactiveHeight: 86
+    interactiveHeight: 86,
+    accessories: { head: "headset", shoulders: "strap", tool: "tablet", badge: "stripe" }
   },
   overseer: {
     key: "overseer",
@@ -88,7 +102,8 @@ const profiles: Record<BuiltInAgentVisualKey, AgentVisualProfile> = {
     shadowWidth: 62,
     shadowHeight: 16,
     interactiveWidth: 86,
-    interactiveHeight: 104
+    interactiveHeight: 104,
+    accessories: { head: "halo", shoulders: "pads", tool: "none", badge: "dot" }
   }
 };
 
@@ -419,6 +434,7 @@ function profileForAgent(agent: Agent): AgentVisualProfile {
 
   const hash = hashString(`${agent.id}:${agent.slug}:${agent.avatarType}:${agent.name}`);
   const palette = customPalettes[hash % customPalettes.length] ?? customPalettes[0];
+  const accessories = customAccessoryLayers(hash);
 
   return {
     key: `custom-${hash.toString(36)}`,
@@ -435,7 +451,22 @@ function profileForAgent(agent: Agent): AgentVisualProfile {
     shadowWidth: 40,
     shadowHeight: 12,
     interactiveWidth: 74,
-    interactiveHeight: 90
+    interactiveHeight: 90,
+    accessories
+  };
+}
+
+function customAccessoryLayers(hash: number): AvatarAccessoryLayers {
+  const heads: AvatarHeadLayer[] = ["cap", "headset", "antenna", "visor"];
+  const shoulders: AvatarShoulderLayer[] = ["pads", "glow", "strap", "none"];
+  const tools: AvatarToolLayer[] = ["tablet", "wristpad", "terminal", "none"];
+  const badges: AvatarBadgeLayer[] = ["core", "stripe", "dot", "none"];
+
+  return {
+    head: heads[hash % heads.length] ?? "cap",
+    shoulders: shoulders[(hash >>> 3) % shoulders.length] ?? "none",
+    tool: tools[(hash >>> 6) % tools.length] ?? "none",
+    badge: badges[(hash >>> 9) % badges.length] ?? "none"
   };
 }
 
@@ -640,12 +671,23 @@ function drawCustomOperator(
   frame: number
 ) {
   if (direction === "up") {
-    drawBackOperator(graphics, profile, mode, frame, { antenna: false, shoulderGlow: profile.accentAlt });
+    const backOptions: DirectionalDetailOptions = { antenna: false };
+    if (profile.accessories.shoulders === "glow") {
+      backOptions.shoulderGlow = profile.accentAlt;
+    }
+
+    drawBackOperator(graphics, profile, mode, frame, backOptions);
+    drawBackAccessoryLayers(graphics, profile, mode, frame);
     return;
   }
 
   if (direction === "left" || direction === "right") {
-    drawSideOperator(graphics, profile, direction, mode, frame, { antenna: false, visor: true, tool: true });
+    drawSideOperator(graphics, profile, direction, mode, frame, {
+      antenna: profile.accessories.head === "antenna",
+      visor: profile.accessories.head === "visor",
+      tool: profile.accessories.tool !== "none"
+    });
+    drawSideAccessoryLayers(graphics, profile, direction, mode, frame);
     return;
   }
 
@@ -675,8 +717,165 @@ function drawCustomOperator(
   rect(graphics, 58, 44 + y - armOffset, 8, 15, profile.trim, 1);
   rect(graphics, 12, 60 + y + armOffset, 5, 5, profile.accentAlt, 1);
   rect(graphics, 59, 60 + y - armOffset, 5, 5, profile.accentAlt, 1);
-  rect(graphics, 34, 15 + y, 7, 9, profile.accentAlt, 0.95);
-  rect(graphics, 31, 12 + y, 13, 4, profile.label === "#fef3c7" ? 0xfff7ad : profile.accentAlt, 0.72);
+  drawFrontAccessoryLayers(graphics, profile, mode, frame, y);
+}
+
+function drawFrontAccessoryLayers(
+  graphics: Phaser.GameObjects.Graphics,
+  profile: AgentVisualProfile,
+  mode: GeneratedMode,
+  frame: number,
+  y: number
+) {
+  const highlight = accessoryHighlight(profile);
+  const active = mode === "working" || mode === "thinking" || mode === "waiting_approval";
+  const handPulse = mode === "working" ? (frame % 2 === 0 ? 2 : -1) : 0;
+
+  if (profile.accessories.shoulders === "pads") {
+    rect(graphics, 15, 39 + y, 9, 11, profile.accentAlt, 0.9);
+    rect(graphics, 52, 39 + y, 9, 11, profile.accentAlt, 0.9);
+  } else if (profile.accessories.shoulders === "glow") {
+    rect(graphics, 14, 39 + y, 7, 12, highlight, active ? 0.9 : 0.48);
+    rect(graphics, 55, 39 + y, 7, 12, highlight, active ? 0.9 : 0.48);
+  } else if (profile.accessories.shoulders === "strap") {
+    rect(graphics, 21, 39 + y, 34, 5, profile.dark, 0.62);
+    rect(graphics, 20, 44 + y, 37, 3, profile.accentAlt, 0.46);
+  }
+
+  if (profile.accessories.badge === "core") {
+    rect(graphics, 34, 52 + y, 8, 8, highlight, active ? 1 : 0.76);
+    rect(graphics, 36, 54 + y, 4, 4, profile.dark, 0.42);
+  } else if (profile.accessories.badge === "stripe") {
+    rect(graphics, 27, 53 + y, 22, 4, highlight, 0.72);
+  } else if (profile.accessories.badge === "dot") {
+    rect(graphics, 37, 51 + y, 5, 5, highlight, 0.86);
+  }
+
+  if (profile.accessories.tool === "tablet") {
+    rect(graphics, 60, 51 + y - handPulse, 8, 10, profile.dark, 1);
+    rect(graphics, 62, 53 + y - handPulse, 4, 5, highlight, active ? 0.85 : 0.5);
+  } else if (profile.accessories.tool === "wristpad") {
+    rect(graphics, 10, 52 + y + handPulse, 7, 5, highlight, 0.76);
+    rect(graphics, 59, 52 + y - handPulse, 7, 5, highlight, 0.76);
+  } else if (profile.accessories.tool === "terminal") {
+    rect(graphics, 58, 44 + y - handPulse, 9, 8, profile.dark, 1);
+    rect(graphics, 60, 46 + y - handPulse, 5, 3, highlight, active ? 0.95 : 0.58);
+  }
+
+  drawHeadAccessory(graphics, profile, y, active);
+}
+
+function drawBackAccessoryLayers(
+  graphics: Phaser.GameObjects.Graphics,
+  profile: AgentVisualProfile,
+  mode: GeneratedMode,
+  frame: number
+) {
+  const walk = mode === "walk";
+  const y = walk ? (frame % 2 === 0 ? 1 : -1) : 0;
+  const active = mode === "working" || mode === "thinking" || mode === "waiting_approval";
+  const highlight = accessoryHighlight(profile);
+  const cx = profile.width / 2;
+  const bodyTop = profile.height * 0.34 + y;
+  const bodyWidth = profile.width * 0.48;
+
+  if (profile.accessories.shoulders === "pads") {
+    rect(graphics, cx - bodyWidth / 2 - 9, bodyTop + 12, 9, 12, profile.accentAlt, 0.86);
+    rect(graphics, cx + bodyWidth / 2, bodyTop + 12, 9, 12, profile.accentAlt, 0.86);
+  } else if (profile.accessories.shoulders === "strap") {
+    rect(graphics, cx - 16, bodyTop + 23, 32, 5, profile.dark, 0.52);
+    rect(graphics, cx - 14, bodyTop + 28, 28, 3, profile.accentAlt, 0.42);
+  }
+
+  if (profile.accessories.badge === "stripe") {
+    rect(graphics, cx - 17, bodyTop + 36, 34, 4, highlight, 0.48);
+  } else if (profile.accessories.badge === "core" || profile.accessories.badge === "dot") {
+    rect(graphics, cx - 4, bodyTop + 34, 8, 6, highlight, active ? 0.7 : 0.44);
+  }
+
+  if (profile.accessories.tool === "tablet" || profile.accessories.tool === "terminal") {
+    rect(graphics, cx + bodyWidth / 2 + 4, bodyTop + 30, 7, 11, profile.dark, 0.92);
+    rect(graphics, cx + bodyWidth / 2 + 5, bodyTop + 32, 5, 5, highlight, active ? 0.64 : 0.36);
+  } else if (profile.accessories.tool === "wristpad") {
+    rect(graphics, cx - bodyWidth / 2 - 8, bodyTop + 33, 6, 5, highlight, 0.58);
+    rect(graphics, cx + bodyWidth / 2 + 2, bodyTop + 33, 6, 5, highlight, 0.58);
+  }
+
+  drawHeadAccessory(graphics, profile, bodyTop - 28, active);
+}
+
+function drawSideAccessoryLayers(
+  graphics: Phaser.GameObjects.Graphics,
+  profile: AgentVisualProfile,
+  direction: Extract<GeneratedDirection, "left" | "right">,
+  mode: GeneratedMode,
+  frame: number
+) {
+  const walk = mode === "walk";
+  const active = mode === "working" || mode === "thinking" || mode === "waiting_approval";
+  const y = walk ? (frame % 2 === 0 ? 1 : -1) : 0;
+  const bodyTop = profile.height * 0.32 + y;
+  const bodyX = profile.width * 0.31;
+  const bodyWidth = profile.width * 0.4;
+  const highlight = accessoryHighlight(profile);
+
+  if (profile.accessories.head === "cap") {
+    sideRect(graphics, profile, direction, bodyX + bodyWidth * 0.2, bodyTop - 9, bodyWidth * 0.74, 5, profile.trim, 0.92);
+    sideRect(graphics, profile, direction, bodyX + bodyWidth * 0.56, bodyTop - 5, 10, 4, highlight, 0.72);
+  } else if (profile.accessories.head === "headset") {
+    sideRect(graphics, profile, direction, bodyX + bodyWidth - 4, bodyTop + 10, 6, 10, profile.dark, 0.95);
+    sideRect(graphics, profile, direction, bodyX + 6, bodyTop - 5, bodyWidth - 8, 3, highlight, 0.72);
+  } else if (profile.accessories.head === "halo") {
+    sideRect(graphics, profile, direction, bodyX - 3, bodyTop - 11, bodyWidth + 11, 4, highlight, 0.78);
+  }
+
+  if (profile.accessories.shoulders === "pads") {
+    sideRect(graphics, profile, direction, bodyX + bodyWidth - 5, bodyTop + 24, 11, 10, profile.accentAlt, 0.82);
+  } else if (profile.accessories.shoulders === "glow") {
+    sideRect(graphics, profile, direction, bodyX + bodyWidth - 4, bodyTop + 24, 7, 13, highlight, active ? 0.84 : 0.42);
+  } else if (profile.accessories.shoulders === "strap") {
+    sideRect(graphics, profile, direction, bodyX + 4, bodyTop + 29, bodyWidth - 4, 4, profile.dark, 0.58);
+  }
+
+  if (profile.accessories.badge === "core") {
+    sideRect(graphics, profile, direction, bodyX + bodyWidth - 12, bodyTop + 35, 6, 6, highlight, active ? 0.86 : 0.58);
+  } else if (profile.accessories.badge === "stripe") {
+    sideRect(graphics, profile, direction, bodyX + 8, bodyTop + 36, bodyWidth - 9, 3, highlight, 0.58);
+  } else if (profile.accessories.badge === "dot") {
+    sideRect(graphics, profile, direction, bodyX + bodyWidth - 10, bodyTop + 34, 4, 4, highlight, 0.72);
+  }
+}
+
+function drawHeadAccessory(
+  graphics: Phaser.GameObjects.Graphics,
+  profile: AgentVisualProfile,
+  y: number,
+  active: boolean
+) {
+  const highlight = accessoryHighlight(profile);
+
+  if (profile.accessories.head === "cap") {
+    rect(graphics, 27, 21 + y, 25, 5, profile.trim, 0.96);
+    rect(graphics, 31, 17 + y, 16, 5, highlight, 0.72);
+  } else if (profile.accessories.head === "headset") {
+    rect(graphics, 22, 29 + y, 5, 9, profile.dark, 1);
+    rect(graphics, 49, 29 + y, 5, 9, profile.dark, 1);
+    rect(graphics, 28, 23 + y, 20, 3, highlight, 0.72);
+  } else if (profile.accessories.head === "antenna") {
+    rect(graphics, 34, 15 + y, 7, 9, profile.accentAlt, 0.95);
+    rect(graphics, 31, 12 + y, 13, 4, highlight, active ? 0.9 : 0.62);
+  } else if (profile.accessories.head === "visor") {
+    rect(graphics, 25, 29 + y, 26, 8, profile.dark, 0.58);
+    rect(graphics, 30, 32 + y, 16, 3, highlight, active ? 0.9 : 0.56);
+  } else if (profile.accessories.head === "halo") {
+    rect(graphics, 27, 14 + y, 23, 4, highlight, 0.82);
+    rect(graphics, 23, 18 + y, 6, 4, highlight, 0.48);
+    rect(graphics, 49, 18 + y, 6, 4, highlight, 0.48);
+  }
+}
+
+function accessoryHighlight(profile: AgentVisualProfile) {
+  return profile.label === "#fef3c7" ? 0xfff7ad : profile.accentAlt;
 }
 
 type DirectionalDetailOptions = {
