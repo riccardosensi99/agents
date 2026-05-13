@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment to deploy
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.target || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-development:
+    if: github.ref_name == 'develop' || (github.event_name == 'workflow_dispatch' && inputs.target == 'development')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: development
+      url: ${{ vars.DEPLOY_PUBLIC_URL }}
+    env:
+      DEPLOY_ENV: development
+      DEPLOY_BRANCH: develop
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_RUN_SEED: ${{ vars.DEPLOY_RUN_SEED || 'false' }}
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$DEPLOY_PORT" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy development
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd '${{ secrets.DEPLOY_APP_DIR }}' && DEPLOY_ENV='$DEPLOY_ENV' APP_DIR='${{ secrets.DEPLOY_APP_DIR }}' BRANCH='$DEPLOY_BRANCH' ENV_FILE='${{ secrets.DEPLOY_ENV_FILE }}' COMPOSE_PROJECT_NAME='${{ secrets.DEPLOY_COMPOSE_PROJECT_NAME }}' BASE_URL='${{ vars.DEPLOY_PUBLIC_URL }}' API_URL='${{ vars.DEPLOY_API_URL }}' RUN_SEED='$DEPLOY_RUN_SEED' sh ./scripts/deploy-remote.sh"
+
+  deploy-production:
+    if: github.ref_name == 'main' || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_PUBLIC_URL }}
+    env:
+      DEPLOY_ENV: production
+      DEPLOY_BRANCH: main
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_RUN_SEED: ${{ vars.DEPLOY_RUN_SEED || 'false' }}
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$DEPLOY_PORT" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy production
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd '${{ secrets.DEPLOY_APP_DIR }}' && DEPLOY_ENV='$DEPLOY_ENV' APP_DIR='${{ secrets.DEPLOY_APP_DIR }}' BRANCH='$DEPLOY_BRANCH' ENV_FILE='${{ secrets.DEPLOY_ENV_FILE }}' COMPOSE_PROJECT_NAME='${{ secrets.DEPLOY_COMPOSE_PROJECT_NAME }}' BASE_URL='${{ vars.DEPLOY_PUBLIC_URL }}' API_URL='${{ vars.DEPLOY_API_URL }}' RUN_SEED='$DEPLOY_RUN_SEED' sh ./scripts/deploy-remote.sh"
