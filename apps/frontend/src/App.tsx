@@ -12,9 +12,22 @@ import { AgentsPage } from "./pages/AgentsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MemoryPage } from "./pages/MemoryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TasksPage } from "./pages/TasksPage";
-import type { Agent, BrandProfile, Draft, Notification, Platform, SystemStatus, Task, TaskPriority, User } from "./types/domain";
+import type {
+  Agent,
+  BrandProfile,
+  Draft,
+  MemoryEntry,
+  Notification,
+  Platform,
+  SystemStatus,
+  Task,
+  TaskPriority,
+  User
+} from "./types/domain";
+import type { MemoryMutationInput } from "./api/client";
 
 const AgentRoomPage = lazy(() =>
   import("./pages/AgentRoomPage").then((module) => ({ default: module.AgentRoomPage }))
@@ -45,6 +58,7 @@ const pathForView: Record<ViewKey, string> = {
   tasks: "/tasks",
   drafts: "/drafts",
   approvals: "/approvals",
+  memory: "/memory",
   settings: "/settings"
 };
 
@@ -63,6 +77,9 @@ const viewFromPath = (path: string): ViewKey => {
   }
   if (path === "/approvals") {
     return "approvals";
+  }
+  if (path === "/memory") {
+    return "memory";
   }
   if (path === "/settings") {
     return "settings";
@@ -84,6 +101,7 @@ function AppContent() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -105,18 +123,20 @@ function AppContent() {
     }
     setError(null);
     try {
-      const [nextAgents, nextTasks, nextDrafts, nextSystem, nextNotifications] = await Promise.all([
+      const [nextAgents, nextTasks, nextDrafts, nextSystem, nextNotifications, nextMemories] = await Promise.all([
         api.getAgents(token),
         api.getTasks(token),
         api.getDrafts(token),
         api.getSystemStatus(token),
-        api.getNotifications(token)
+        api.getNotifications(token),
+        api.getMemoryEntries(token)
       ]);
       setAgents(nextAgents);
       setTasks(nextTasks);
       setDrafts(nextDrafts);
       setSystemStatus(nextSystem);
       setNotifications(nextNotifications);
+      setMemories(nextMemories);
       if (options.notify) {
         toast.success("Dati sincronizzati");
       }
@@ -352,6 +372,30 @@ function AppContent() {
         setBrandProfile(profile);
         await loadAll();
       },
+      async createMemory(body: MemoryMutationInput) {
+        if (!token) {
+          return;
+        }
+        await api.createMemoryEntry(token, body);
+        const nextMemories = await api.getMemoryEntries(token);
+        setMemories(nextMemories);
+      },
+      async updateMemory(id: string, body: Partial<MemoryMutationInput>) {
+        if (!token) {
+          return;
+        }
+        await api.updateMemoryEntry(token, id, body);
+        const nextMemories = await api.getMemoryEntries(token);
+        setMemories(nextMemories);
+      },
+      async deleteMemory(id: string) {
+        if (!token) {
+          return;
+        }
+        await api.deleteMemoryEntry(token, id);
+        const nextMemories = await api.getMemoryEntries(token);
+        setMemories(nextMemories);
+      },
       async markNotificationsRead() {
         if (!token) {
           return;
@@ -503,6 +547,17 @@ function AppContent() {
       );
     }
 
+    if (activeView === "memory") {
+      return (
+        <MemoryPage
+          memories={memories}
+          onCreateMemory={handlers.createMemory}
+          onUpdateMemory={handlers.updateMemory}
+          onDeleteMemory={handlers.deleteMemory}
+        />
+      );
+    }
+
     return (
       <DashboardPage
         agents={agents}
@@ -544,6 +599,7 @@ function AppContent() {
             <option value="tasks">Tasks</option>
             <option value="drafts">Drafts</option>
             <option value="approvals">Approvals</option>
+            <option value="memory">Memory</option>
             <option value="settings">Settings</option>
           </select>
         </div>

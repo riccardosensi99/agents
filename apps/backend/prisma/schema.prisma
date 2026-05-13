@@ -76,6 +76,18 @@ enum PublishingStatus {
   failed
 }
 
+enum MemoryType {
+  EXPERIENCE
+  OPINION
+  LESSON
+  WORKFLOW
+  STACK
+  CLIENT_CASE
+  MISTAKE
+  DEPLOY
+  CONTENT_EXAMPLE
+}
+
 model User {
   id           String     @id @default(uuid())
   email        String     @unique
@@ -308,4 +320,20 @@ model PublishingAttempt {
   @@index([draftId])
   @@index([provider])
   @@index([status])
+}
+
+model MemoryEntry {
+  id         String     @id @default(uuid())
+  title      String
+  content    String
+  type       MemoryType
+  tags       String[]   @default([])
+  importance Int        @default(3)
+  source     String     @default("manual")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([type])
+  @@index([importance])
+  @@index([createdAt])
 }

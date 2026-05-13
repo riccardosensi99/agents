@@ -17,6 +17,16 @@ export type DraftStatus =
 export type Platform = "instagram" | "linkedin" | "internal";
 export type RiskLevel = "low" | "medium" | "high";
 export type RecommendedAction = "approve" | "revise" | "reject";
+export type MemoryType =
+  | "EXPERIENCE"
+  | "OPINION"
+  | "LESSON"
+  | "WORKFLOW"
+  | "STACK"
+  | "CLIENT_CASE"
+  | "MISTAKE"
+  | "DEPLOY"
+  | "CONTENT_EXAMPLE";
 
 export type User = {
   id: string;
@@ -171,6 +181,18 @@ export type BrandProfile = {
   topicsToAvoid: string;
   goodPostExamples: string;
   bannedWords: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MemoryEntry = {
+  id: string;
+  title: string;
+  content: string;
+  type: MemoryType;
+  tags: string[];
+  importance: number;
+  source: string;
   createdAt: string;
   updatedAt: string;
 };

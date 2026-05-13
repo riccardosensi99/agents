@@ -1,7 +1,7 @@
 import clsx from "clsx";
-import { BadgeCheck, Bot, Files, Gamepad2, LayoutDashboard, ListChecks, LogOut, Settings } from "lucide-react";
+import { BadgeCheck, Bot, Brain, Files, Gamepad2, LayoutDashboard, ListChecks, LogOut, Settings } from "lucide-react";
 
-export type ViewKey = "dashboard" | "agent-room" | "agents" | "tasks" | "drafts" | "approvals" | "settings";
+export type ViewKey = "dashboard" | "agent-room" | "agents" | "tasks" | "drafts" | "approvals" | "memory" | "settings";
 
 type Props = {
   activeView: ViewKey;
@@ -16,6 +16,7 @@ const items: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }
   { key: "tasks", label: "Tasks", icon: ListChecks },
   { key: "drafts", label: "Drafts", icon: Files },
   { key: "approvals", label: "Approvals", icon: BadgeCheck },
+  { key: "memory", label: "Memory", icon: Brain },
   { key: "settings", label: "Settings", icon: Settings }
 ];
 

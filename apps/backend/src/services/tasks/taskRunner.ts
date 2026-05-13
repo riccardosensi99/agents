@@ -4,6 +4,7 @@ import { AppError, notFound } from "../../lib/errors";
 import { safeErrorMessage } from "../../lib/redact";
 import { getDefaultBrandProfile } from "../brand/brandProfileService";
 import { createInitialDraftVersion } from "../drafts/draftVersionService";
+import { buildMemoryContext, getRelevantMemories } from "../../modules/memory/memory.service";
 import { createNotification } from "../notifications/notificationService";
 import { notifyTelegramDraftReady } from "../telegram/telegramApprovalService";
 import { runInstagramAgent } from "../agents/instagramAgent";
@@ -13,10 +14,10 @@ import type { GeneratedDraft } from "../agents/types";
 
 const db = prisma as any;
 
-async function runGenericAgent(prompt: string): Promise<GeneratedDraft> {
+async function runGenericAgent(prompt: string, memoryContext?: string): Promise<GeneratedDraft> {
   return {
     title: "Internal agent output",
-    content: `Internal note generated for: ${prompt}`,
+    content: [`Internal note generated for: ${prompt}`, "", memoryContext ?? ""].filter(Boolean).join("\n"),
     platform: "internal",
     metadata: {}
   };
@@ -120,16 +121,23 @@ export async function runTask(taskId: string) {
 
   try {
     const brandProfile = await getDefaultBrandProfile();
+    const memories = await getRelevantMemories({
+      prompt: task.prompt,
+      platform,
+      agentSlug: task.agent.slug,
+      limit: 8
+    });
+    const memoryContext = buildMemoryContext(memories);
     const aiContext = {
       taskId: task.id,
       agentSlug: task.agent.slug
     };
     const generated =
       task.agent.slug === "instaspark"
-        ? await runInstagramAgent(task.prompt, brandProfile, aiContext)
+        ? await runInstagramAgent(task.prompt, brandProfile, aiContext, memoryContext)
         : task.agent.slug === "linkforge"
-          ? await runLinkedInAgent(task.prompt, brandProfile, aiContext)
-          : await runGenericAgent(task.prompt);
+          ? await runLinkedInAgent(task.prompt, brandProfile, aiContext, memoryContext)
+          : await runGenericAgent(task.prompt, memoryContext);
 
     const supervisorReview =
       generated.platform === "internal"
@@ -139,6 +147,7 @@ export async function runTask(taskId: string) {
             content: generated.content,
             platform: generated.platform,
             brandProfile,
+            memoryContext,
             context: aiContext
           });
 
@@ -176,7 +185,8 @@ export async function runTask(taskId: string) {
         resultJson: {
           draftId: draft.id,
           generated,
-          supervisorReview
+          supervisorReview,
+          memoryIds: memories.map((memory) => memory.id)
         },
         completedAt: generated.platform === "internal" ? new Date() : null
       }
@@ -190,7 +200,8 @@ export async function runTask(taskId: string) {
     await addTaskEvent(task.id, "task.draft_created", "Draft generated and saved", {
       draftId: draft.id,
       platform: generated.platform,
-      recommendedAction: supervisorReview?.recommendedAction
+      recommendedAction: supervisorReview?.recommendedAction,
+      memoryIds: memories.map((memory) => memory.id)
     });
 
     await db.agentLog.create({
@@ -201,7 +212,8 @@ export async function runTask(taskId: string) {
           taskId: task.id,
           draftId: draft.id,
           status: nextTaskStatus,
-          supervisor: supervisorReview
+          supervisor: supervisorReview,
+          memoryIds: memories.map((memory) => memory.id)
         }
       }
     });

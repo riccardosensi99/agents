@@ -12,6 +12,7 @@ export async function reviewDraftWithSupervisor(params: {
   brandProfile: BrandProfile | null;
   userFeedback?: string | undefined;
   context?: AgentRunContext;
+  memoryContext?: string;
 }): Promise<SupervisorReview> {
   const prompt = buildSupervisorPrompt(params);
 

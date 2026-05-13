@@ -48,6 +48,105 @@ const agents = [
   }
 ];
 
+const memoryEntries = [
+  {
+    title: "Local-only project pain",
+    content: "Ho perso 2 giorni perche un progetto funzionava solo sul PC del dev. Da allora preferisco setup riproducibili, Docker e README operativi prima di aggiungere feature lucide.",
+    type: "MISTAKE" as const,
+    tags: ["docker", "deploy", "workflow", "freelance"],
+    importance: 5,
+    source: "seed-founder"
+  },
+  {
+    title: "Simple deploy beats hype",
+    content: "Preferisco stack semplici e deployabili rispetto ad architetture hype. Se un founder non puo avviare, testare e aggiornare il prodotto senza panico, la tecnologia sta lavorando contro il business.",
+    type: "OPINION" as const,
+    tags: ["stack", "deploy", "founder", "linkedin"],
+    importance: 5,
+    source: "seed-founder"
+  },
+  {
+    title: "Monitoring is maintenance",
+    content: "Molti founder sottovalutano monitoring e manutenzione. Il prodotto non finisce quando va online: log, healthcheck, backup e rollback sono parte del valore consegnato.",
+    type: "LESSON" as const,
+    tags: ["monitoring", "production", "founder", "linkedin"],
+    importance: 5,
+    source: "seed-founder"
+  },
+  {
+    title: "Docker saved VPS deploys",
+    content: "Docker mi ha salvato piu volte durante deploy VPS: stesso comando per ricostruire, migrare e ripartire. Non elimina i problemi, ma rende le procedure meno fragili.",
+    type: "DEPLOY" as const,
+    tags: ["docker", "vps", "deploy", "instagram"],
+    importance: 4,
+    source: "seed-founder"
+  },
+  {
+    title: "Founder dashboard workflow",
+    content: "Quando progetto dashboard per piccoli team parto dai workflow ripetuti: chi crea cosa, dove si blocca, quale stato deve essere visibile subito e quale azione deve essere reversibile.",
+    type: "WORKFLOW" as const,
+    tags: ["dashboard", "workflow", "saas", "linkedin"],
+    importance: 4,
+    source: "seed-founder"
+  },
+  {
+    title: "AI needs approval guardrails",
+    content: "Uso agenti AI per accelerare bozze e controlli, ma non per pubblicare automaticamente. L'approvazione umana resta il confine tra automazione utile e automation spam.",
+    type: "OPINION" as const,
+    tags: ["ai", "guardrails", "approval", "instagram", "linkedin"],
+    importance: 5,
+    source: "seed-founder"
+  },
+  {
+    title: "Practical content formula",
+    content: "I contenuti migliori partono da un problema reale, mostrano una scelta tecnica concreta, spiegano il tradeoff e chiudono con una CTA soft. Niente guru tone.",
+    type: "CONTENT_EXAMPLE" as const,
+    tags: ["content", "instagram", "linkedin", "tone"],
+    importance: 5,
+    source: "seed-founder"
+  },
+  {
+    title: "Small client case",
+    content: "Un cliente piccolo non aveva bisogno di microservizi: aveva bisogno di login, ruoli chiari, CRUD affidabile, backup e una dashboard veloce per decidere ogni mattina.",
+    type: "CLIENT_CASE" as const,
+    tags: ["client-case", "dashboard", "simplicity", "linkedin"],
+    importance: 4,
+    source: "seed-founder"
+  },
+  {
+    title: "TypeScript as delivery tool",
+    content: "TypeScript non e burocrazia se usato bene: mi aiuta a cambiare codice con meno paura, soprattutto quando backend e frontend condividono concetti di dominio.",
+    type: "STACK" as const,
+    tags: ["typescript", "stack", "frontend", "backend"],
+    importance: 3,
+    source: "seed-founder"
+  },
+  {
+    title: "Rollback before launch",
+    content: "Prima di mettere online una feature mi chiedo sempre come torno indietro. Un rollback semplice vale piu di un deploy elegante ma fragile.",
+    type: "LESSON" as const,
+    tags: ["rollback", "deploy", "production"],
+    importance: 4,
+    source: "seed-founder"
+  },
+  {
+    title: "Freelance communication",
+    content: "Con i clienti preferisco mostrare stato, rischi e prossime azioni in modo asciutto. La chiarezza riduce ansia e revisioni inutili piu di qualsiasi promessa.",
+    type: "EXPERIENCE" as const,
+    tags: ["freelance", "client", "communication", "linkedin"],
+    importance: 4,
+    source: "seed-founder"
+  },
+  {
+    title: "VPS is enough for many products",
+    content: "Per molti MVP e tool interni una VPS ben configurata e piu che sufficiente. Il punto e sapere quando basta e quando invece servono servizi gestiti.",
+    type: "OPINION" as const,
+    tags: ["vps", "production", "mvp", "stack"],
+    importance: 3,
+    source: "seed-founder"
+  }
+];
+
 async function main() {
   const passwordHash = await bcrypt.hash("changeme123", 12);
 
@@ -107,6 +206,26 @@ async function main() {
           message: "Seed agent initialized",
           meta: { slug: saved.slug }
         }
+      });
+    }
+  }
+
+  for (const memory of memoryEntries) {
+    const existing = await prisma.memoryEntry.findFirst({
+      where: {
+        title: memory.title,
+        source: memory.source
+      }
+    });
+
+    if (existing) {
+      await prisma.memoryEntry.update({
+        where: { id: existing.id },
+        data: memory
+      });
+    } else {
+      await prisma.memoryEntry.create({
+        data: memory
       });
     }
   }
