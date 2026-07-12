@@ -54,6 +54,10 @@ const envSchema = z.object({
   TELEGRAM_CHAT_ID: optionalNonEmptyString,
   TELEGRAM_WEBHOOK_SECRET: optionalNonEmptyString,
   TELEGRAM_WEBHOOK_URL: optionalNonEmptyString,
+  DISCORD_ENABLED: booleanFromEnv.default(false),
+  DISCORD_BOT_TOKEN: optionalNonEmptyString,
+  DISCORD_CHANNEL_ID: optionalNonEmptyString,
+  DISCORD_PUBLIC_KEY: optionalNonEmptyString,
   LINKEDIN_ENABLED: booleanFromEnv.default(false),
   LINKEDIN_CLIENT_ID: optionalNonEmptyString,
   LINKEDIN_CLIENT_SECRET: optionalNonEmptyString,
@@ -117,6 +121,18 @@ if (parsedEnv.TELEGRAM_ENABLED) {
   }
 }
 
+if (parsedEnv.DISCORD_ENABLED) {
+  if (!parsedEnv.DISCORD_BOT_TOKEN) {
+    validationMessages.push("DISCORD_BOT_TOKEN is required when DISCORD_ENABLED=true.");
+  }
+  if (!parsedEnv.DISCORD_CHANNEL_ID) {
+    validationMessages.push("DISCORD_CHANNEL_ID is required when DISCORD_ENABLED=true.");
+  }
+  if (!parsedEnv.DISCORD_PUBLIC_KEY) {
+    validationMessages.push("DISCORD_PUBLIC_KEY is required when DISCORD_ENABLED=true.");
+  }
+}
+
 if (parsedEnv.LINKEDIN_ENABLED) {
   if (!parsedEnv.LINKEDIN_CLIENT_ID) {
     validationMessages.push("LINKEDIN_CLIENT_ID is required when LINKEDIN_ENABLED=true.");
@@ -174,6 +190,12 @@ export function getSafeStartupConfig() {
       botToken: env.TELEGRAM_BOT_TOKEN ? "configured" : "not_configured",
       chatId: env.TELEGRAM_CHAT_ID ? "configured" : "not_configured",
       webhookUrl: env.TELEGRAM_WEBHOOK_URL ? "configured" : "not_configured"
+    },
+    discord: {
+      enabled: env.DISCORD_ENABLED,
+      botToken: env.DISCORD_BOT_TOKEN ? "configured" : "not_configured",
+      channelId: env.DISCORD_CHANNEL_ID ? "configured" : "not_configured",
+      publicKey: env.DISCORD_PUBLIC_KEY ? "configured" : "not_configured"
     },
     linkedin: {
       enabled: env.LINKEDIN_ENABLED,

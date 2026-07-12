@@ -143,10 +143,11 @@ export function SettingsPage({
         <p className="mt-1 text-sm text-slate-500">Brand profile, provider AI, scheduler e notifiche operative.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <SettingCard label="AI provider" value={status?.aiProvider ?? "mock"} />
         <SettingCard label="Scheduler" value={status?.schedulerEnabled ? "enabled" : "disabled"} />
         <SettingCard label="Telegram" value={status?.telegram?.enabled ? "enabled" : "disabled"} />
+        <SettingCard label="Discord" value={status?.discord?.enabled ? "enabled" : "disabled"} />
         <SettingCard label="LinkedIn" value={status?.linkedin?.enabled ? "prepared" : "disabled"} />
         <SettingCard label="Approvals" value={`${status?.counts.approvalDrafts ?? 0}`} />
       </div>

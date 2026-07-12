@@ -163,6 +163,7 @@ model Draft {
   approvals          Approval[]
   versions           DraftVersion[]
   telegramActions    TelegramApprovalAction[]
+  discordActions     DiscordApprovalAction[]
   publishingAttempts PublishingAttempt[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -277,6 +278,21 @@ model Notification {
 }
 
 model TelegramApprovalAction {
+  id         String         @id @default(uuid())
+  draftId    String
+  callbackId String         @unique
+  action     ApprovalAction
+  status     String         @default("received")
+  message    String?
+  payload    Json?
+  draft      Draft          @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@index([draftId])
+  @@index([status])
+}
+
+model DiscordApprovalAction {
   id         String         @id @default(uuid())
   draftId    String
   callbackId String         @unique

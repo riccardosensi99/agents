@@ -42,6 +42,10 @@ systemRoutes.get(
           enabled: env.TELEGRAM_ENABLED,
           configured: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID && env.TELEGRAM_WEBHOOK_SECRET)
         },
+        discord: {
+          enabled: env.DISCORD_ENABLED,
+          configured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_CHANNEL_ID && env.DISCORD_PUBLIC_KEY)
+        },
         linkedin: {
           enabled: env.LINKEDIN_ENABLED,
           configured: Boolean(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET && env.LINKEDIN_REDIRECT_URI)

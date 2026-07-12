@@ -7,12 +7,22 @@ const db = prisma as any;
 
 type DraftDecisionAction = Extract<ApprovalAction, "approve" | "reject" | "request_revision">;
 
+type ChannelSource = "telegram" | "discord";
+
+const isChannelSource = (source?: string): source is ChannelSource =>
+  source === "telegram" || source === "discord";
+
+const channelActionModel: Record<ChannelSource, "telegramApprovalAction" | "discordApprovalAction"> = {
+  telegram: "telegramApprovalAction",
+  discord: "discordApprovalAction"
+};
+
 type ApplyDraftDecisionParams = {
   draftId: string;
   userId: string | null;
   action: DraftDecisionAction;
   comment?: string;
-  source?: "dashboard" | "telegram";
+  source?: "dashboard" | "telegram" | "discord";
   idempotencyKey?: string;
   payload?: Record<string, unknown>;
 };
@@ -21,8 +31,9 @@ const statusForAction = (action: DraftDecisionAction): DraftStatus =>
   action === "approve" ? "approved" : action === "reject" ? "rejected" : "revision_requested";
 
 export async function applyDraftDecision(params: ApplyDraftDecisionParams) {
-  if (params.idempotencyKey) {
-    const existingAction = await db.telegramApprovalAction.findUnique({
+  if (params.idempotencyKey && isChannelSource(params.source)) {
+    const delegate = db[channelActionModel[params.source]];
+    const existingAction = await delegate.findUnique({
       where: { callbackId: params.idempotencyKey },
       include: { draft: true }
     });
@@ -47,9 +58,9 @@ export async function applyDraftDecision(params: ApplyDraftDecisionParams) {
 
   const nextStatus = statusForAction(params.action);
 
-  if (params.source === "telegram" && draft.status !== "waiting_approval") {
+  if (isChannelSource(params.source) && draft.status !== "waiting_approval") {
     if (params.idempotencyKey) {
-      await db.telegramApprovalAction.create({
+      await db[channelActionModel[params.source]].create({
         data: {
           draftId: draft.id,
           callbackId: params.idempotencyKey,
@@ -100,8 +111,8 @@ export async function applyDraftDecision(params: ApplyDraftDecisionParams) {
       }
     });
 
-    if (params.source === "telegram" && params.idempotencyKey) {
-      await tx.telegramApprovalAction.create({
+    if (isChannelSource(params.source) && params.idempotencyKey) {
+      await tx[channelActionModel[params.source]].create({
         data: {
           draftId: draft.id,
           callbackId: params.idempotencyKey,

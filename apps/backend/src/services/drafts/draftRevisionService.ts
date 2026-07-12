@@ -7,6 +7,7 @@ import { reviewDraftWithSupervisor } from "../agents/supervisorAgent";
 import { buildMemoryContext, getRelevantMemories } from "../../modules/memory/memory.service";
 import { createNotification } from "../notifications/notificationService";
 import { notifyTelegramDraftReady } from "../telegram/telegramApprovalService";
+import { notifyDiscordDraftReady } from "../discord/discordApprovalService";
 import { createDraftVersion } from "./draftVersionService";
 
 const db = prisma as any;
@@ -166,6 +167,13 @@ export async function regenerateDraft(params: {
 
   await notifyTelegramDraftReady(draft.id).catch((error) => {
     console.warn("telegram.draft_notification_failed", {
+      draftId: draft.id,
+      message: error instanceof Error ? error.message : "unknown"
+    });
+  });
+
+  await notifyDiscordDraftReady(draft.id).catch((error) => {
+    console.warn("discord.draft_notification_failed", {
       draftId: draft.id,
       message: error instanceof Error ? error.message : "unknown"
     });

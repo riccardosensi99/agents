@@ -154,6 +154,10 @@ export type SystemStatus = {
     enabled: boolean;
     configured: boolean;
   };
+  discord?: {
+    enabled: boolean;
+    configured: boolean;
+  };
   linkedin?: {
     enabled: boolean;
     configured: boolean;
